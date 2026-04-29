@@ -16,7 +16,7 @@
  * Check your breakout board -- most ship with AD0 pulled low.
  */
 #define MPU6050_ADDR     0x68
-#define I2C_DEV          "/dev/i2c-0"
+#define I2C_DEV          "/dev/i2c-1"
 
 /*
  * MPU-6050 register map.
