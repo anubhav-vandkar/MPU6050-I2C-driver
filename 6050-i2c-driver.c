@@ -173,10 +173,7 @@ int mpu6050_init(void)
     }
 
     /*
-     * Verify sensor identity.
      * WHO_AM_I (0x75) always returns 0x68 on the MPU-6050
-     * regardless of the I2C address set by AD0.
-     * If this fails your wiring or address is wrong.
      */
     uint8_t who_am_i;
     if (i2c_read_regs(MPU6050_ADDR, REG_WHO_AM_I, &who_am_i, 1) < 0) {
@@ -199,8 +196,7 @@ int mpu6050_init(void)
      */
     if (i2c_write_reg(MPU6050_ADDR, REG_PWR_MGMT_1, 0x01) < 0)
         return -1;
-    usleep(10000); /* wait 10ms for oscillator to stabilise */
-
+    usleep(10000); 
     /*
      * Sample rate = gyro output rate / (1 + SMPLRT_DIV)
      * Gyro output rate = 1 kHz when DLPF is enabled.
@@ -277,7 +273,6 @@ int mpu6050_read_frame(imu_raw_frame_t *frame, uint16_t *sample_count)
 {
     uint8_t buf[14];
 
-    /* timestamp before read to minimise latency error */
     frame->timestamp_us = get_timestamp_us();
     frame->sample_count = (*sample_count)++;
 
