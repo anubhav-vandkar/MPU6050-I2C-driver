@@ -1,18 +1,16 @@
 #define _GNU_SOURCE
-
 /*
- * main.c
+ * MPU-6050 -> angle computation -> FPGA SRAM pipeline on DE1-SoC HPS.
  *
- * Entry point for the MPU-6050 data pipeline on the DE1-SoC HPS.
- *
- * Flow:
- *   1. Init sensor (I2C open + register config)
- *   2. Calibrate (collect 1000 still samples, compute bias offsets)
- *   3. Read loop:
- *        a. Read raw frame
- *        b. Apply bias correction
- *        c. Convert to Q-format fixed-point
- *        d. Print / pass to Avalon-MM bridge (TODO)
+ * Flow per frame:
+ *   1. Read raw IMU frame
+ *   2. Apply bias correction
+ *   3. Compute roll / pitch / tilt angles
+ *   4. Write angle frame to FPGA SRAM  (data_ready = 1)
+ *   5. Poll SRAM until FPGA clears data_ready to 0
+ *      (FPGA runs Kalman filter and writes results back)
+ *   6. Read FPGA-modified frame into fpga_result
+ *   7. TODO: pass fpga_result to VGA computation
  */
 
 #include <stdio.h>
@@ -22,39 +20,44 @@
 
 #include "mpu6050.h"
 #include "imu_calibrate.h"
-#include "imu_fixedpoint.h"
+#include "imu_angles.h"
+#include "fpga_sram.h"
+
+#define FPGA_TIMEOUT_US   50000
 
 int main(void)
 {
     imu_raw_frame_t   raw;
-    imu_fixed_frame_t fixed;
+    imu_angle_frame_t angles;
+    imu_angle_frame_t fpga_result;   /* FPGA-modified frame read back from SRAM */
     imu_bias_t        bias;
     uint16_t          sample_count = 0;
     int               ret;
 
-    /* 1 ms sleep keeps the polling loop near 1 kHz */
-    struct timespec sleep_time = { 0, 1000000 };
+    struct timespec sleep_time = { 0, 1000000 };   /* 1 ms */
 
-    /* ── Init ──────────────────────────────────────────────────── */
+    // Init
     if (mpu6050_init() < 0) {
-        fprintf(stderr, "Sensor init failed. Check wiring and I2C address.\n");
+        fprintf(stderr, "Sensor init failed.\n");
         return 1;
     }
 
-    /* ── Calibrate ─────────────────────────────────────────────── */
-    /*
-     * Keep the sensor perfectly still and flat on a level surface
-     * until the calibration routine finishes (about 1 second).
-     */
+    // Calibrate
     if (mpu6050_calibrate(&bias) < 0) {
-        fprintf(stderr, "Calibration failed. Exiting.\n");
+        fprintf(stderr, "Calibration failed.\n");
+        mpu6050_close();
+        return 1;
+    }
+    mpu6050_print_bias(&bias);
+
+    // Open FPGA SRAM bridge
+    if (fpga_sram_open() < 0) {
+        fprintf(stderr, "FPGA SRAM open failed.\n");
         mpu6050_close();
         return 1;
     }
 
-    mpu6050_print_bias(&bias);
-
-    /* ── Read loop ─────────────────────────────────────────────── */
+    // Read loop
     printf("Starting read loop. Ctrl+C to stop.\n\n");
 
     while (1) {
@@ -64,30 +67,38 @@ int main(void)
             fprintf(stderr, "I2C read error at sample %u\n", sample_count);
             break;
         }
-
         if (ret == 1) {
-            /* data not ready -- brief sleep and retry */
             usleep(100);
             continue;
         }
 
-        /* subtract calibration offsets */
+        // apply calibration offsets
         mpu6050_apply_bias(&raw, &bias);
 
-        /* convert to fixed-point */
-        imu_to_fixed(&raw, &fixed);
+        // compute roll / pitch / tilt, pack into angle struct
+        imu_compute_angles(&raw, &angles);
 
-        /*
-         * TODO: write fixed frame to Avalon-MM bridge
-         *   e.g. avalon_write(&fixed);
-         */
+        // write to FPGA SRAM, set data_ready = 1
+        if (fpga_sram_write(&angles) < 0) {
+            fprintf(stderr, "SRAM write failed at sample %u\n", sample_count);
+            break;
+        }
 
-        /* debug print */
-        imu_fixed_print(&fixed);
+        // Polling to send to VGA 
+        if (fpga_sram_poll_read(&fpga_result, FPGA_TIMEOUT_US) < 0) {
+            fprintf(stderr, "FPGA timeout at sample %u -- is the FPGA running?\n",
+                    sample_count);
+            break;
+        }
+
+        // TODO: send to VGA
+        printf("[FPGA] ");
+        imu_angles_print(&fpga_result);
 
         nanosleep(&sleep_time, NULL);
     }
 
+    fpga_sram_close();
     mpu6050_close();
     return 0;
 }
