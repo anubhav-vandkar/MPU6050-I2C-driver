@@ -97,7 +97,8 @@ int main(void)
 
         // TODO: send to VGA
         printf("[FPGA] ");
-        imu_angles_print(&fpga_result);
+        //imu_angles_print(&fpga_result);
+        imu_angles_print(&angles);
 
         nanosleep(&sleep_time, NULL);
     }

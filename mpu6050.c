@@ -103,9 +103,6 @@ int mpu6050_init(void)
     return 0;
 }
 
-/* ─────────────────────────────────────────
- * mpu6050_read_frame()
- * ───────────────────────────────────────── */
 int mpu6050_read_frame(imu_raw_frame_t *frame, uint16_t *sample_count)
 {
     uint8_t buf[14];
@@ -147,9 +144,6 @@ int mpu6050_read_frame(imu_raw_frame_t *frame, uint16_t *sample_count)
     return 0;
 }
 
-/* ─────────────────────────────────────────
- * mpu6050_close()
- * ───────────────────────────────────────── */
 void mpu6050_close(void)
 {
     /* put sensor back to sleep before closing the bus */
