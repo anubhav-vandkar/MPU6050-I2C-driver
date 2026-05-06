@@ -65,13 +65,11 @@ void imu_angles_print(const imu_angle_frame_t *f)
     //        f->gy_q88,    q88_to_float(f->gy_q88),
     //        f->data_ready);
 
-    printf("%u,"
-           "%d(%f°),"
-           "%d(%f°),"
-           "%d(%f°),"
-           "%d(%f°/s),"
-           "%d(%f°/s),"
-           "%u\n",
+    printf("%f°,"
+           "%f°,"
+           "%f°,"
+           "%f°/s,"
+           "%f°/s\n"
            f->sample_count,
            f->roll_q88,  q88_to_float(f->roll_q88),
            f->pitch_q88, q88_to_float(f->pitch_q88),
