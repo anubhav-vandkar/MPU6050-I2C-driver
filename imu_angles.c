@@ -87,9 +87,9 @@ void imu_angles_print(const imu_angle_frame_t *f)
            "%f°,"
            "%f°/s,"
            "%f°/s\n", 
-           q39_to_float(f->roll_q39),
-           q39_to_float(f->pitch_q39),
-           q39_to_float(f->tilt_q39),
-           q39_to_float(f->gx_q39),
-           q39_to_float(f->gy_q39));
+           q39_to_float(f->roll),
+           q39_to_float(f->pitch),
+           q39_to_float(f->tilt),
+           q39_to_float(f->gx),
+           q39_to_float(f->gy));
 }
