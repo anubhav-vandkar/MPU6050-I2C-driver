@@ -49,7 +49,7 @@ void imu_compute_angles(const imu_raw_frame_t *raw, imu_angle_frame_t *out)
     float ay = (float)raw->ay / ACCEL_SENSITIVITY;
     float az = (float)raw->az / ACCEL_SENSITIVITY;
 
-    /* convert raw LSB to deg/s (gyro stays in deg/s for Q8.8) */
+    /* convert raw LSB to deg/s (gyro stays in deg/s for Q3.9) */
     float gx = (float)raw->gx / GYRO_SENSITIVITY;
     float gy = (float)raw->gy / GYRO_SENSITIVITY;
     /* gz discarded */
@@ -60,11 +60,11 @@ void imu_compute_angles(const imu_raw_frame_t *raw, imu_angle_frame_t *out)
 
     /* pack into output struct */
     out->sample_count = raw->sample_count;
-    out->roll_q39     = float_to_q39(roll_rad);
-    out->pitch_q39    = float_to_q39(pitch_rad);
-    out->tilt_q39     = float_to_q39(tilt_rad);
-    out->gx_q39       = float_to_q39(gx);
-    out->gy_q39       = float_to_q39(gy);
+    out->roll = float_to_q39(roll_rad);
+    out->pitch = float_to_q39(pitch_rad);
+    out->tilt = float_to_q39(tilt_rad);
+    out->gx = float_to_q39(gx);
+    out->gy = float_to_q39(gy);
     out->data_ready   = 1;
 }
 
