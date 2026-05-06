@@ -27,17 +27,6 @@
  *   2. Round to nearest integer
  *   3. Clamp to 12-bit signed range [-2048, +2047]
  *   4. Mask to 12 bits and store in int16_t (upper 4 bits = 0)
- *
- * Example: roll = 1.5708 rad (π/2 = 90°)
- *   1.5708 * 512 = 804.25 -> round -> 804
- *   804 in binary = 0000 0011 0010 0100
- *   upper 4 bits  = 0000  (discarded by FPGA)
- *   lower 12 bits = 0011 0010 0100 = 804  -> correct
- *
- * Example: roll = -1.5708 rad
- *   -1.5708 * 512 = -804.25 -> round -> -804
- *   -804 & 0x0FFF = 0xCCC  (two's complement in 12 bits)
- *   stored as int16_t = 0x0CCC (upper 4 bits = 0)
  * ───────────────────────────────────────── */
 static int16_t float_to_q39(float rad)
 {

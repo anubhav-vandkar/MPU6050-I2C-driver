@@ -16,18 +16,18 @@
 
 /* Decode helper: sign-extend 12-bit field then divide by scale */
 static inline float q39_to_float(int16_t val){
-    
+
     int16_t sign_extended = (int16_t)((val << 4)) >> 4;
     return (float)sign_extended / (float)Q39_SCALE;
 }
 
 typedef struct {
     uint16_t sample_count;
-    int16_t  roll_q39;
-    int16_t  pitch_q39;
-    int16_t  tilt_q39;
-    int16_t  gx_q88;
-    int16_t  gy_q88;
+    int16_t  roll;
+    int16_t  pitch;
+    int16_t  tilt;
+    int16_t  gx;
+    int16_t  gy;
     uint8_t  data_ready;
 } imu_angle_frame_t;
 
