@@ -50,12 +50,14 @@ int main(void)
     }
     mpu6050_print_bias(&bias);
 
+    /*
     // Open FPGA SRAM bridge
     if (fpga_sram_open() < 0) {
         fprintf(stderr, "FPGA SRAM open failed.\n");
         mpu6050_close();
         return 1;
     }
+    */
 
     // Read loop
     printf("Starting read loop. Ctrl+C to stop.\n\n");
@@ -79,8 +81,6 @@ int main(void)
         imu_compute_angles(&raw, &angles);
 
         /*
-        
-        */
         // write to FPGA SRAM, set data_ready = 1
         if (fpga_sram_write(&angles) < 0) {
             fprintf(stderr, "SRAM write failed at sample %u\n", sample_count);
@@ -93,6 +93,7 @@ int main(void)
                     sample_count);
             break;
         }
+        */
 
         // TODO: send to VGA
         printf("[FPGA] ");
