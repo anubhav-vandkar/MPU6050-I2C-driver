@@ -50,12 +50,27 @@ void imu_compute_angles(const imu_raw_frame_t *raw, imu_angle_frame_t *out)
 
 void imu_angles_print(const imu_angle_frame_t *f)
 {
-    printf("%-5u,"
-           "%6d(%7.3f°),"
-           "%6d(%7.3f°),"
-           "%6d(%7.3f°),"
-           "%6d(%7.3f°/s),"
-           "%6d(%7.3f°/s),"
+    // printf("%-5u,"
+    //        "%6d(%7.3f°),"
+    //        "%6d(%7.3f°),"
+    //        "%6d(%7.3f°),"
+    //        "%6d(%7.3f°/s),"
+    //        "%6d(%7.3f°/s),"
+    //        "%u\n",
+    //        f->sample_count,
+    //        f->roll_q88,  q88_to_float(f->roll_q88),
+    //        f->pitch_q88, q88_to_float(f->pitch_q88),
+    //        f->tilt_q88,  q88_to_float(f->tilt_q88),
+    //        f->gx_q88,    q88_to_float(f->gx_q88),
+    //        f->gy_q88,    q88_to_float(f->gy_q88),
+    //        f->data_ready);
+
+    printf("%u,"
+           "%d(%f°),"
+           "%d(%f°),"
+           "%d(%f°),"
+           "%d(%f°/s),"
+           "%d(%f°/s),"
            "%u\n",
            f->sample_count,
            f->roll_q88,  q88_to_float(f->roll_q88),
