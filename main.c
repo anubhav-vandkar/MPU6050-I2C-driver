@@ -78,6 +78,9 @@ int main(void)
         // compute roll / pitch / tilt, pack into angle struct
         imu_compute_angles(&raw, &angles);
 
+        /*
+        
+        */
         // write to FPGA SRAM, set data_ready = 1
         if (fpga_sram_write(&angles) < 0) {
             fprintf(stderr, "SRAM write failed at sample %u\n", sample_count);
