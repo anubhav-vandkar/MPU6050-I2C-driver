@@ -1,39 +1,31 @@
 #ifndef IMU_ANGLES_H
 #define IMU_ANGLES_H
 
-/*
- * imu_angles.h
- *
- * Computes tilt angles from calibrated accelerometer readings
- * using the three-axis arctan formulas:
- *
- *   roll  (ρ) = arctan( Ax / sqrt(Ay^2 + Az^2) )   -- rotation about X
- *   pitch (φ) = arctan( Ay / sqrt(Ax^2 + Az^2) )   -- rotation about Y
- *   tilt  (θ) = arctan( sqrt(Ax^2 + Ay^2) / Az )   -- inclination from vertical
-
- * Q8.8 chosen because:
- *   - arctan output range is ±90° (roll/pitch) or 0–180° (tilt)
- *   - Q8.8 covers ±255° with 1/256 deg resolution (~0.004°)
- *   - Fits in int16_t, matches the gyro format already chosen
- */
-
 #include <stdint.h>
 #include "mpu6050.h"
 #include "imu_fixedpoint.h"
 
+#define Q39_FRAC_BITS   9
+#define Q39_SCALE       (1 << Q39_FRAC_BITS)
+
 /*
- * All angle fields are Q8.8: divide by 256 to get degrees.
- * All gyro  fields are Q8.8: divide by 256 to get deg/s.
- *
- * Total size: 2 + 2 + 2 + 2 + 2 + 2 + 1 = 13 bytes
- * The compiler will pad to 14 bytes (2-byte alignment on int16_t).
- * Use __attribute__((packed)) if the FPGA side expects no padding.
+ * 12-bit signed range: -2048 to +2047
+ * Mask to keep only the lower 12 bits after scaling.
  */
+#define Q39_MASK        0x0FFF
+
+/* Decode helper: sign-extend 12-bit field then divide by scale */
+static inline float q39_to_float(int16_t val){
+    
+    int16_t sign_extended = (int16_t)((val << 4)) >> 4;
+    return (float)sign_extended / (float)Q39_SCALE;
+}
+
 typedef struct {
     uint16_t sample_count;
-    int16_t  roll_q88;
-    int16_t  pitch_q88;
-    int16_t  tilt_q88;
+    int16_t  roll_q39;
+    int16_t  pitch_q39;
+    int16_t  tilt_q39;
     int16_t  gx_q88;
     int16_t  gy_q88;
     uint8_t  data_ready;

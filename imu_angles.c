@@ -1,29 +1,66 @@
 #define _GNU_SOURCE
 
+/*
+ * imu_angles.c
+ *
+ * Converts calibrated raw accelerometer + gyro readings into
+ * tilt angles (roll, pitch, tilt) in radians, packed as Q3.9
+ * in the lower 12 bits of an int16_t.
+ *
+ * The upper 4 bits of each angle field are always 0.
+ * The FPGA discards them and reads only bits [11:0].
+ */
+
 #include "imu_angles.h"
 #include "mpu6050.h"
 
 #include <math.h>
 #include <stdio.h>
 
-static int16_t float_to_q88(float deg)
+/* ─────────────────────────────────────────
+ * float_to_q39()
+ *
+ * Converts a float angle in radians to Q3.9 packed in 12 bits.
+ *
+ * Steps:
+ *   1. Multiply by 512 (2^9) to shift fractional part into integer
+ *   2. Round to nearest integer
+ *   3. Clamp to 12-bit signed range [-2048, +2047]
+ *   4. Mask to 12 bits and store in int16_t (upper 4 bits = 0)
+ *
+ * Example: roll = 1.5708 rad (π/2 = 90°)
+ *   1.5708 * 512 = 804.25 -> round -> 804
+ *   804 in binary = 0000 0011 0010 0100
+ *   upper 4 bits  = 0000  (discarded by FPGA)
+ *   lower 12 bits = 0011 0010 0100 = 804  -> correct
+ *
+ * Example: roll = -1.5708 rad
+ *   -1.5708 * 512 = -804.25 -> round -> -804
+ *   -804 & 0x0FFF = 0xCCC  (two's complement in 12 bits)
+ *   stored as int16_t = 0x0CCC (upper 4 bits = 0)
+ * ───────────────────────────────────────── */
+static int16_t float_to_q39(float rad)
 {
-    float scaled = deg * (float)Q88_SCALE;   /* deg * 256 */
+    float scaled = rad * (float)Q39_SCALE;   /* radians * 512 */
 
-    if (scaled >  32767.0f) scaled =  32767.0f;
-    if (scaled < -32768.0f) scaled = -32768.0f;
+    /* clamp to 12-bit signed range before truncating */
+    if (scaled >  2047.0f) scaled =  2047.0f;
+    if (scaled < -2048.0f) scaled = -2048.0f;
 
-    return (int16_t)scaled;
+    int16_t quantised = (int16_t)scaled;
+
+    /* mask to 12 bits -- upper nibble is always 0 */
+    return (int16_t)(quantised & (int16_t)Q39_MASK);
 }
 
 void imu_compute_angles(const imu_raw_frame_t *raw, imu_angle_frame_t *out)
 {
-    /* convert raw LSB to g (float) */
+    /* convert raw LSB to g */
     float ax = (float)raw->ax / ACCEL_SENSITIVITY;
     float ay = (float)raw->ay / ACCEL_SENSITIVITY;
     float az = (float)raw->az / ACCEL_SENSITIVITY;
 
-    /* convert raw LSB to deg/s (float) */
+    /* convert raw LSB to deg/s (gyro stays in deg/s for Q8.8) */
     float gx = (float)raw->gx / GYRO_SENSITIVITY;
     float gy = (float)raw->gy / GYRO_SENSITIVITY;
     /* gz discarded */
@@ -32,37 +69,28 @@ void imu_compute_angles(const imu_raw_frame_t *raw, imu_angle_frame_t *out)
     float pitch_rad = atan2f(ay, sqrtf(ax*ax + az*az));
     float tilt_rad  = atan2f(sqrtf(ax*ax + ay*ay), az);
 
-    float rad_to_deg = 180.0f / (float)M_PI;
-
-    float roll_deg  = roll_rad  * rad_to_deg;
-    float pitch_deg = pitch_rad * rad_to_deg;
-    float tilt_deg  = tilt_rad  * rad_to_deg;
-
     /* pack into output struct */
     out->sample_count = raw->sample_count;
-    out->roll_q88     = float_to_q88(roll_deg);
-    out->pitch_q88    = float_to_q88(pitch_deg);
-    out->tilt_q88     = float_to_q88(tilt_deg);
-    out->gx_q88       = float_to_q88(gx);
-    out->gy_q88       = float_to_q88(gy);
+    out->roll_q39     = float_to_q39(roll_rad);
+    out->pitch_q39    = float_to_q39(pitch_rad);
+    out->tilt_q39     = float_to_q39(tilt_rad);
+    out->gx_q39       = float_to_q39(gx);
+    out->gy_q39       = float_to_q39(gy);
     out->data_ready   = 1;
 }
 
 void imu_angles_print(const imu_angle_frame_t *f)
 {
-    // printf("%-5u,"
-    //        "%6d(%7.3f°),"
-    //        "%6d(%7.3f°),"
-    //        "%6d(%7.3f°),"
-    //        "%6d(%7.3f°/s),"
-    //        "%6d(%7.3f°/s),"
-    //        "%u\n",
+
+    // printf("cnt=%-5u | "
+    //        "roll=%5d(%7.4f rad) pitch=%5d(%7.4f rad) tilt=%5d(%7.4f rad) | "
+    //        "gx=%6d(%7.3f d/s) gy=%6d(%7.3f d/s) | rdy=%u\n",
     //        f->sample_count,
-    //        f->roll_q88,  q88_to_float(f->roll_q88),
-    //        f->pitch_q88, q88_to_float(f->pitch_q88),
-    //        f->tilt_q88,  q88_to_float(f->tilt_q88),
-    //        f->gx_q88,    q88_to_float(f->gx_q88),
-    //        f->gy_q88,    q88_to_float(f->gy_q88),
+    //        f->roll_q39,  q39_to_float(f->roll_q39),
+    //        f->pitch_q39, q39_to_float(f->pitch_q39),
+    //        f->tilt_q39,  q39_to_float(f->tilt_q39),
+    //        f->gx_q39,    q39_to_float(f->gx_q39),
+    //        f->gy_q39,    q39_to_float(f->gy_q39),
     //        f->data_ready);
 
     printf("%f°,"
@@ -70,9 +98,9 @@ void imu_angles_print(const imu_angle_frame_t *f)
            "%f°,"
            "%f°/s,"
            "%f°/s\n", 
-           q88_to_float(f->roll_q88),
-           q88_to_float(f->pitch_q88),
-           q88_to_float(f->tilt_q88),
-           q88_to_float(f->gx_q88),
-           q88_to_float(f->gy_q88));
+           q39_to_float(f->roll_q39),
+           q39_to_float(f->pitch_q39),
+           q39_to_float(f->tilt_q39),
+           q39_to_float(f->gx_q39),
+           q39_to_float(f->gy_q39));
 }
