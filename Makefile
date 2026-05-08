@@ -1,22 +1,20 @@
-# Makefile for MPU-6050 -> FPGA SRAM pipeline on DE1-SoC HPS
+# Makefile for MPU-6050 -> Kalman filter (FPGA) pipeline on DE1-SoC HPS
 #
-# Cross-compile on host:
-#   make CROSS=arm-linux-gnueabihf-
-# Native compile on HPS:
-#   make
+# Cross-compile: make CROSS=arm-linux-gnueabihf-
+# Native:        make
 
 CC      = $(CROSS)gcc
 CFLAGS  = -Wall -Wextra -O2 -std=c99
 LDFLAGS = -lm
 
-TARGET = imu_reader
+TARGET = imu_reader.o
 SRCS   = main.c \
          i2c_hal.c \
          mpu6050.c \
          imu_calibrate.c \
          imu_fixedpoint.c \
          imu_angles.c \
-         fpga_sram.c
+         fpga_avalon.c
 
 OBJS = $(SRCS:.c=.o)
 
@@ -30,3 +28,5 @@ $(TARGET): $(OBJS)
 
 clean:
 	rm -f $(OBJS) $(TARGET)
+
+.PHONY: all clean
