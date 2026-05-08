@@ -1,9 +1,5 @@
 #define _GNU_SOURCE
 
-/*
- * imu_angles.c
- */
-
 #include "imu_angles.h"
 #include "mpu6050.h"
 

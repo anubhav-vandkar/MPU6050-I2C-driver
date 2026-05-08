@@ -36,13 +36,13 @@ int main(void)
 
     struct timespec sleep_time = { 0, 1000000 };   /* 1 ms */
 
-    /* -- 1. Init sensor ----------------------------------------- */
+    // sensor init
     if (mpu6050_init() < 0) {
         fprintf(stderr, "Sensor init failed.\n");
         return 1;
     }
 
-    /* -- 2. Calibrate ------------------------------------------- */
+    // calibrate
     if (mpu6050_calibrate(&bias) < 0) {
         fprintf(stderr, "Calibration failed.\n");
         mpu6050_close();
@@ -50,15 +50,14 @@ int main(void)
     }
     mpu6050_print_bias(&bias);
 
-    /* -- 3. Open Avalon bridge ----------------------------------- */
+    // avalon init
     if (fpga_avalon_open() < 0) {
         fprintf(stderr, "Avalon bridge open failed.\n");
         mpu6050_close();
         return 1;
     }
 
-    /* -- 4. Read loop ------------------------------------------- */
-    printf("Starting read loop. Ctrl+C to stop.\n\n");
+    printf("Starting read loop\n");
 
     while (1) {
         ret = mpu6050_read_frame(&raw, &sample_count);
@@ -72,23 +71,21 @@ int main(void)
             continue;
         }
 
-        /* apply calibration offsets */
         mpu6050_apply_bias(&raw, &bias);
 
-        /* compute angles and pack into struct */
         imu_compute_angles(&raw, &angles);
 
         /* write roll_pitch and gx_gy to Kalman Avalon registers */
-        if (fpga_avalon_write(&angles) < 0) {
-            fprintf(stderr, "Avalon write failed\n");
-            break;
-        }
+        // if (fpga_avalon_write(&angles) < 0) {
+        //     fprintf(stderr, "Avalon write failed\n");
+        //     break;
+        // }
 
         /* poll until Kalman clears data_ready, read results back */
-        if (fpga_avalon_poll_read(&kalman_result, FPGA_POLL_TIMEOUT_US) < 0) {
-            fprintf(stderr, "Kalman timeout -- is the FPGA running?\n");
-            break;
-        }
+        // if (fpga_avalon_poll_read(&kalman_result, FPGA_POLL_TIMEOUT_US) < 0) {
+        //     fprintf(stderr, "Kalman timeout -- is the FPGA running?\n");
+        //     break;
+        // }
 
         /*
          * kalman_result.result_0 and result_1 hold the Kalman output.
@@ -98,8 +95,7 @@ int main(void)
 
         /* debug */
         imu_angles_print(&angles);
-        printf("  kalman -> r0=0x%08X r1=0x%08X\n",
-               kalman_result.result_0, kalman_result.result_1);
+        //printf("  kalman -> r0=0x%08X r1=0x%08X\n", kalman_result.result_0, kalman_result.result_1);
 
         nanosleep(&sleep_time, NULL);
     }
