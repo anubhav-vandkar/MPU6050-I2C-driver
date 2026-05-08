@@ -12,7 +12,6 @@ SRCS   = main.c \
          i2c_hal.c \
          mpu6050.c \
          imu_calibrate.c \
-         imu_fixedpoint.c \
          imu_angles.c \
          fpga_avalon.c
 

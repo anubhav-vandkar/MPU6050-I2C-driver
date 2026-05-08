@@ -1,20 +1,5 @@
 #define _GNU_SOURCE
 
-/*
- * main.c
- *
- * MPU-6050 -> angle computation -> Kalman filter (FPGA) pipeline.
- *
- * Flow per frame:
- *   1. Read raw IMU frame
- *   2. Apply bias correction
- *   3. Compute roll / pitch angles + gx / gy
- *   4. Write packed registers to Kalman filter Avalon slave
- *   5. Poll REG_DATA_READY until Kalman clears it to 0
- *   6. Read Kalman results into kalman_result
- *   7. TODO: pass kalman_result to VGA computation
- */
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
