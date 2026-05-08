@@ -1,13 +1,5 @@
 #define _GNU_SOURCE
 
-/*
- * mpu6050.c
- *
- * Sensor-level driver for the MPU-6050.
- * Handles init, register config, burst reads, and shutdown.
- * All I2C bus mechanics are delegated to i2c_hal.c.
- */
-
 #include "mpu6050.h"
 #include "i2c_hal.h"
 
@@ -15,13 +7,6 @@
 #include <unistd.h>
 #include <time.h>
 
-/* ─────────────────────────────────────────
- * get_timestamp_us()
- *
- * Monotonic microsecond timestamp.
- * CLOCK_MONOTONIC never jumps backwards, which matters for
- * computing dt correctly in the Kalman filter.
- * ───────────────────────────────────────── */
 static uint32_t get_timestamp_us(void)
 {
     struct timespec ts;
@@ -29,19 +14,12 @@ static uint32_t get_timestamp_us(void)
     return (uint32_t)(ts.tv_sec * 1000000UL + ts.tv_nsec / 1000);
 }
 
-/* ─────────────────────────────────────────
- * mpu6050_init()
- * ───────────────────────────────────────── */
 int mpu6050_init(void)
 {
     if (i2c_hal_open(I2C_DEV) < 0)
         return -1;
 
-    /*
-     * WHO_AM_I sanity check -- register 0x75 always returns 0x68
-     * on a genuine MPU-6050.  If this fails, something is wrong
-     * with the wiring or the I2C address.
-     */
+    //sanity check who_am_i
     uint8_t who_am_i;
     if (i2c_read_regs(MPU6050_ADDR, REG_WHO_AM_I, &who_am_i, 1) < 0) {
         fprintf(stderr, "mpu6050_init: WHO_AM_I read failed\n");
@@ -54,11 +32,6 @@ int mpu6050_init(void)
     }
     printf("MPU-6050 found (WHO_AM_I=0x%02X)\n", who_am_i);
 
-    /*
-     * Wake from sleep and select gyro PLL as clock source.
-     * The sensor resets with SLEEP=1 (register value 0x40).
-     * 0x01 clears SLEEP and picks the more stable gyro PLL clock.
-     */
     if (i2c_write_reg(MPU6050_ADDR, REG_PWR_MGMT_1, 0x01) < 0)
         return -1;
     usleep(10000); /* 10 ms -- let the PLL lock */
@@ -111,12 +84,12 @@ int mpu6050_read_frame(imu_raw_frame_t *frame, uint16_t *sample_count)
     frame->timestamp_us = get_timestamp_us();
     frame->sample_count = (*sample_count)++;
 
-    /* Poll the data-ready bit before reading */
+    // Poll the data-ready bit before reading 
     if (i2c_read_regs(MPU6050_ADDR, REG_INT_STATUS, &int_status, 1) < 0)
         return -1;
 
     if (!(int_status & 0x01))
-        return 1;   /* not ready yet -- caller retries */
+        return 1;
 
     /*
      * Burst read 14 bytes starting at ACCEL_XOUT_H (0x3B).
@@ -136,7 +109,6 @@ int mpu6050_read_frame(imu_raw_frame_t *frame, uint16_t *sample_count)
     frame->ax = (int16_t)((buf[0]  << 8) | buf[1]);
     frame->ay = (int16_t)((buf[2]  << 8) | buf[3]);
     frame->az = (int16_t)((buf[4]  << 8) | buf[5]);
-    /* buf[6..7] = temperature, skipped */
     frame->gx = (int16_t)((buf[8]  << 8) | buf[9]);
     frame->gy = (int16_t)((buf[10] << 8) | buf[11]);
     frame->gz = (int16_t)((buf[12] << 8) | buf[13]);
