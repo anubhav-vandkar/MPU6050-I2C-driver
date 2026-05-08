@@ -9,7 +9,7 @@
 #include <sys/mman.h>
 
 static int    mem_fd  = -1;
-static void  *av_base = 0x40;
+static void  *av_base = NULL;
 
 static inline void reg_write(uint32_t offset, uint32_t value)
 {
@@ -20,8 +20,7 @@ static inline void reg_write(uint32_t offset, uint32_t value)
 
 static inline uint32_t reg_read(uint32_t offset)
 {
-    volatile uint32_t *reg = (volatile uint32_t *)
-                             ((uint8_t *)av_base + offset);
+    volatile uint32_t *reg = (volatile uint32_t *)((uint8_t *)av_base + offset);
     return *reg;
 }
 

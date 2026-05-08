@@ -3,7 +3,6 @@
 
 #include <stdint.h>
 #include "mpu6050.h"
-#include "imu_fixedpoint.h"
 
 #define Q39_FRAC_BITS   9
 #define Q39_SCALE       (1 << Q39_FRAC_BITS)   /* 512 */

@@ -33,8 +33,8 @@ void imu_compute_angles(const imu_raw_frame_t *raw, imu_angle_frame_t *out)
     /* convert to Q-format */
     int16_t roll_q39  = float_to_q39(roll_rad);
     int16_t pitch_q39 = float_to_q39(pitch_rad);
-    int16_t gx_q88    = float_to_q88(gx);
-    int16_t gy_q88    = float_to_q88(gy);
+    int16_t gx_q88    = float_to_q39(gx);
+    int16_t gy_q88    = float_to_q39(gy);
 
     out->roll_pitch = ((int32_t)roll_q39  << 16) | (uint16_t)pitch_q39;
     out->gx_gy      = ((int32_t)gx_q88   << 16) | (uint16_t)gy_q88;
