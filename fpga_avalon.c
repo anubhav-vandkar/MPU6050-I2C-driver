@@ -112,3 +112,8 @@ void fpga_avalon_close(void)
     }
     printf("Avalon bridge unmapped\n");
 }
+
+void print_kalman_result(const kalman_result_t *res)
+{
+    printf("roll=0x%08X pitch=0x%08X\n", res->kalman_roll, res->kalman_pitch);
+}

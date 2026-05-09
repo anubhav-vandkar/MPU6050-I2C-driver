@@ -32,4 +32,6 @@ int fpga_avalon_poll_read(kalman_result_t *result, uint32_t timeout_us);
 
 void fpga_avalon_close(void);
 
+void print_kalman_result(const kalman_result_t *res);
+
 #endif /* FPGA_AVALON_H */

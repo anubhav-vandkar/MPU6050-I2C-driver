@@ -91,7 +91,9 @@ int main(void)
          *   vga_update(&kalman_result);
          */
 
-        imu_angles_print(&angles);
+        //imu_angles_print(&angles);
+
+        print_kalman_result(&kalman_result);
         //printf("  kalman -> roll=0x%08X pitch=0x%08X\n", kalman_result.kalman_roll, kalman_result.kalman_pitch);
 
         nanosleep(&sleep_time, NULL);
