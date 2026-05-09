@@ -43,15 +43,15 @@
 #define GYRO_SENSITIVITY 131.0f   /* LSB/°/s at ±250 °/s */
 
 typedef struct {
-    uint32_t timestamp_us;   /* monotonic clock, microseconds */
-    uint16_t sample_count;   /* frame counter, wraps at 65535 */
-    int16_t  ax, ay, az;     /* raw accelerometer */
-    int16_t  gx, gy, gz;     /* raw gyroscope */
+    uint32_t timestamp_us;
+    uint16_t sample_count;
+    int16_t ax, ay, az;
+    int16_t gx, gy, gz;
 } imu_raw_frame_t;
 
-int  mpu6050_init(void);
+int mpu6050_init(void);
 
-int  mpu6050_read_frame(imu_raw_frame_t *frame, uint16_t *sample_count);
+int mpu6050_read_frame(imu_raw_frame_t *frame, uint16_t *sample_count);
 
 void mpu6050_close(void);
 

@@ -12,12 +12,12 @@
 
 int main(void)
 {
-    imu_raw_frame_t   raw;
+    imu_raw_frame_t raw;
     imu_angle_frame_t angles;
-    kalman_result_t   kalman_result;
-    imu_bias_t        bias;
-    uint16_t          sample_count = 0;
-    int               ret;
+    kalman_result_t kalman_result;
+    imu_bias_t bias;
+    uint16_t sample_count = 0;
+    int ret;
 
     struct timespec sleep_time = { 0, 1000000 };   /* 1 ms */
 
@@ -78,9 +78,8 @@ int main(void)
          *   vga_update(&kalman_result);
          */
 
-        /* debug */
         imu_angles_print(&angles);
-        //printf("  kalman -> r0=0x%08X r1=0x%08X\n", kalman_result.result_0, kalman_result.result_1);
+        //printf("  kalman -> roll=0x%08X pitch=0x%08X\n", kalman_result.kalman_roll, kalman_result.kalman_pitch);
 
         nanosleep(&sleep_time, NULL);
     }

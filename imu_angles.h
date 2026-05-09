@@ -16,15 +16,12 @@ static inline float q39_to_float(int16_t val)
 }
 
 typedef struct {
-    int32_t  roll_pitch;   /* (roll_q39  << 16) | (uint16_t)pitch_q39 */
-    int32_t  gx_gy;        /* (gx_q88   << 16) | (uint16_t)gy_q88    */
-    uint8_t  data_ready;   /* Kalman clears to 0 when result is ready  */
+    int32_t  roll;
+    int32_t  pitch;
+    int32_t  gx;
+    int32_t  gy;
+    uint8_t  data_ready;
 } imu_angle_frame_t;
-
-#define ROLL_FROM_FRAME(f)   ((int16_t)(((f)->roll_pitch >> 16) & 0xFFFF))
-#define PITCH_FROM_FRAME(f)  ((int16_t)(((f)->roll_pitch)       & 0xFFFF))
-#define GX_FROM_FRAME(f)     ((int16_t)(((f)->gx_gy    >> 16) & 0xFFFF))
-#define GY_FROM_FRAME(f)     ((int16_t)(((f)->gx_gy)           & 0xFFFF))
 
 void imu_compute_angles(const imu_raw_frame_t *raw, imu_angle_frame_t *out);
 

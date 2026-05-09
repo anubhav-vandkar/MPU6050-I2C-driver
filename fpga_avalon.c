@@ -13,8 +13,7 @@ static void  *av_base = NULL;
 
 static inline void reg_write(uint32_t offset, uint32_t value)
 {
-    volatile uint32_t *reg = (volatile uint32_t *)
-                             ((uint8_t *)av_base + offset);
+    volatile uint32_t *reg = (volatile uint32_t *)((uint8_t *)av_base + offset);
     *reg = value;
 }
 
@@ -59,8 +58,10 @@ int fpga_avalon_write(const imu_angle_frame_t *frame)
         return -1;
     }
 
-    reg_write(REG_ROLL_PITCH, (uint32_t)frame->roll_pitch);
-    reg_write(REG_GX_GY,      (uint32_t)frame->gx_gy);
+    reg_write(REG_ROLL, (uint32_t)frame->roll);
+    reg_write(REG_PITCH, (uint32_t)frame->pitch);
+    reg_write(REG_GX, (uint32_t)frame->gx);
+    reg_write(REG_GY, (uint32_t)frame->gy);
 
     return 0;
 }
@@ -89,8 +90,8 @@ int fpga_avalon_poll_read(kalman_result_t *result, uint32_t timeout_us)
     }
 
     /* Kalman cleared data_ready -- read results */
-    result->result_0 = reg_read(REG_RESULT_0);
-    result->result_1 = reg_read(REG_RESULT_1);
+    result->kalman_roll = reg_read(REG_RESULT_ROLL);
+    result->kalman_pitch = reg_read(REG_RESULT_PITCH);
 
     return 0;
 }

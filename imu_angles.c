@@ -27,35 +27,27 @@ void imu_compute_angles(const imu_raw_frame_t *raw, imu_angle_frame_t *out)
 
     float roll_rad  = atan2f(ax, sqrtf(ay*ay + az*az));
     float pitch_rad = atan2f(ay, sqrtf(ax*ax + az*az));
-    /* tilt computed but not sent -- Kalman only needs roll + pitch */
     /* float tilt_rad = atan2f(sqrtf(ax*ax + ay*ay), az); */
 
     /* convert to Q-format */
     int16_t roll_q39  = float_to_q39(roll_rad);
     int16_t pitch_q39 = float_to_q39(pitch_rad);
-    int16_t gx_q88    = float_to_q39(gx);
-    int16_t gy_q88    = float_to_q39(gy);
+    int16_t gx_q39    = float_to_q39(gx);
+    int16_t gy_q39    = float_to_q39(gy);
 
-    out->roll_pitch = ((int32_t)roll_q39  << 16) | (uint16_t)pitch_q39;
-    out->gx_gy      = ((int32_t)gx_q88   << 16) | (uint16_t)gy_q88;
-    out->data_ready = 0;   /* only Kalman filter writes this field */
+    out->roll = roll_q39;
+    out->pitch = pitch_q39;
+    out->gx = gx_q39;
+    out->gy = gy_q39;
 }
 
 void imu_angles_print(const imu_angle_frame_t *f)
 {
-    int16_t roll  = ROLL_FROM_FRAME(f);
-    int16_t pitch = PITCH_FROM_FRAME(f);
-    int16_t gx    = GX_FROM_FRAME(f);
-    int16_t gy    = GY_FROM_FRAME(f);
-
-    printf("roll_pitch=0x%08X  gx_gy=0x%08X | "
-           "roll=%5d(%7.4f rad) pitch=%5d(%7.4f rad) | "
+    printf("roll=%5d(%7.4f rad) pitch=%5d(%7.4f rad) | "
            "gx=%6d(%7.3f d/s) gy=%6d(%7.3f d/s) | rdy=%u\n",
-           (uint32_t)f->roll_pitch,
-           (uint32_t)f->gx_gy,
-           roll,  q39_to_float(roll),
-           pitch, q39_to_float(pitch),
-           gx,    q39_to_float(gx),
-           gy,    q39_to_float(gy),
+           f->roll,  q39_to_float(f->roll),
+           f->pitch, q39_to_float(f->pitch),
+           f->gx,    q39_to_float(f->gx),
+           f->gy,    q39_to_float(f->gy),
            f->data_ready);
 }
