@@ -102,6 +102,7 @@ int fpga_avalon_poll_read(kalman_result_t *result, uint32_t timeout_us)
     result->kalman_pitch = reg_read(REG_RESULT_PITCH);
 
     reg_write(REG_DATA_READY, 0);
+    reg_write(REG_DATA_STATUS, 0);
 
     return 0;
 }
