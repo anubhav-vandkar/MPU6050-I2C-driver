@@ -10,6 +10,16 @@
 #include "imu_angles.h"
 #include "fpga_avalon.h"
 
+#include <signal.h>
+
+static volatile int running = 1;
+
+static void signal_handler(int sig)
+{
+    (void)sig;
+    running = 0;
+}
+
 int main(void)
 {
     imu_raw_frame_t raw;
@@ -44,7 +54,10 @@ int main(void)
 
     printf("Starting read loop\n");
 
-    while (1) {
+    signal(SIGINT,  signal_handler);
+    signal(SIGTERM, signal_handler);
+
+    while (running) {
         ret = mpu6050_read_frame(&raw, &sample_count);
 
         if (ret < 0) {
