@@ -25,8 +25,11 @@ void imu_compute_angles(const imu_raw_frame_t *raw, imu_angle_frame_t *out)
     float gx = (float)raw->gx / GYRO_SENSITIVITY;
     float gy = (float)raw->gy / GYRO_SENSITIVITY;
 
-    float roll_rad  = atan2f(ax, sqrtf(ay*ay + az*az));
-    float pitch_rad = atan2f(ay, sqrtf(ax*ax + az*az));
+    // float roll_rad  = atan2f(ax, sqrtf(ay*ay + az*az));
+    // float pitch_rad = atan2f(ay, sqrtf(ax*ax + az*az));
+
+    float roll_rad  = atan2f(ay, az);
+    float pitch_rad = atan2f(ax, sqrtf(ay*ay + az*az));
     /* float tilt_rad = atan2f(sqrtf(ax*ax + ay*ay), az); */
 
     /* convert to Q-format */
