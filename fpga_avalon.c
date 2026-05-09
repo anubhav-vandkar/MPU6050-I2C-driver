@@ -64,6 +64,8 @@ int fpga_avalon_write(const imu_angle_frame_t *frame)
         return -1;
     }
 
+    reg_write(REG_DATA_STATUS, 0);
+
     reg_write(REG_ROLL, (uint32_t)frame->roll);
     reg_write(REG_PITCH, (uint32_t)frame->pitch);
     reg_write(REG_GX, (uint32_t)frame->gx);
