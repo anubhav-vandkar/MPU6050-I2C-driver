@@ -6,7 +6,7 @@
 
 //addresses
 #define FPGA_AVALON_BASE 0xFF200040UL
-#define FPGA_AVALON_MAP_SIZE sizeof(kalman_result_t)
+#define FPGA_AVALON_MAP_SIZE 0x1000
 
 //register offsets
 #define REG_ROLL 0x00
