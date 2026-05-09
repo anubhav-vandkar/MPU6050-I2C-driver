@@ -60,17 +60,17 @@ int main(void)
 
         imu_compute_angles(&raw, &angles);
 
-        /* write roll_pitch and gx_gy to Kalman Avalon registers */
-        // if (fpga_avalon_write(&angles) < 0) {
-        //     fprintf(stderr, "Avalon write failed\n");
-        //     break;
-        // }
+        /* write roll, pitch, gx, gy to Kalman Avalon registers */
+        if (fpga_avalon_write(&angles) < 0) {
+            fprintf(stderr, "Avalon write failed\n");
+            break;
+        }
 
         /* poll until Kalman clears data_ready, read results back */
-        // if (fpga_avalon_poll_read(&kalman_result, FPGA_POLL_TIMEOUT_US) < 0) {
-        //     fprintf(stderr, "Kalman timeout -- is the FPGA running?\n");
-        //     break;
-        // }
+        if (fpga_avalon_poll_read(&kalman_result, FPGA_POLL_TIMEOUT_US) < 0) {
+            fprintf(stderr, "Kalman timeout -- is the FPGA running?\n");
+            break;
+        }
 
         /*
          * kalman_result.result_0 and result_1 hold the Kalman output.
