@@ -1,6 +1,7 @@
 #define _GNU_SOURCE
 
 #include "fpga_avalon.h"
+#include "imu_angles.h"
 
 #include <stdio.h>
 #include <stdint.h>
@@ -121,7 +122,11 @@ void fpga_avalon_close(void)
     printf("Avalon bridge unmapped\n");
 }
 
-void print_kalman_result(const kalman_result_t *res)
+void print_kalman_result(const kalman_result_t *res, const imu_angle_frame_t *angles)
 {
-    printf("roll=0x%08X pitch=0x%08X\n", res->kalman_roll, res->kalman_pitch);
+    printf("roll=%f pitch=%f | Kalman -> roll=%f pitch=%f\n", 
+            q39_to_float(angles->roll),
+            q39_to_float(angles->pitch),
+            q39_to_float(res->kalman_roll),
+            q39_to_float(res->kalman_pitch));
 }
