@@ -14,8 +14,9 @@
 #define REG_GX 0x48
 #define REG_GY 0x4C
 #define REG_DATA_READY 0x50
-#define REG_RESULT_ROLL 0x54
-#define REG_RESULT_PITCH 0x58
+#define REG_DATA_STATUS 0x54
+#define REG_RESULT_ROLL 0x58
+#define REG_RESULT_PITCH 0x5C
 
 typedef struct {
     uint32_t kalman_roll;

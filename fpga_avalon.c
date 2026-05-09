@@ -44,13 +44,15 @@ int fpga_avalon_open(void)
             (unsigned long)FPGA_AVALON_BASE,
             (unsigned)FPGA_AVALON_MAP_SIZE,
             mem_fd);
-    close(mem_fd);
-    mem_fd = -1;
-    return -1;
-}
+        close(mem_fd);
+        mem_fd = -1;
+        return -1;
+    }
 
-    printf("Avalon bridge mapped: phys=0x%08lX virt=%p\n",
-           (unsigned long)FPGA_AVALON_BASE, av_base);
+    printf("Avalon bridge mapped: phys=0x%08lX virt=%p\n", (unsigned long)FPGA_AVALON_BASE, av_base);
+
+    reg_write(REG_DATA_READY,  0);
+    reg_write(REG_DATA_STATUS, 0);
     return 0;
 }
 
@@ -67,6 +69,8 @@ int fpga_avalon_write(const imu_angle_frame_t *frame)
     reg_write(REG_GX, (uint32_t)frame->gx);
     reg_write(REG_GY, (uint32_t)frame->gy);
 
+    reg_write(REG_DATA_READY, 1);
+
     return 0;
 }
 
@@ -80,7 +84,7 @@ int fpga_avalon_poll_read(kalman_result_t *result, uint32_t timeout_us)
     uint32_t elapsed_us = 0;
     const uint32_t poll_interval_us = 10;
 
-    while (reg_read(REG_DATA_READY) != 0) {
+    while (reg_read(REG_DATA_STATUS) != 0) {
         if (timeout_us > 0) {
             if (elapsed_us >= timeout_us) {
                 fprintf(stderr,
@@ -96,6 +100,8 @@ int fpga_avalon_poll_read(kalman_result_t *result, uint32_t timeout_us)
     /* Kalman cleared data_ready -- read results */
     result->kalman_roll = reg_read(REG_RESULT_ROLL);
     result->kalman_pitch = reg_read(REG_RESULT_PITCH);
+
+    reg_write(REG_DATA_READY, 0);
 
     return 0;
 }
