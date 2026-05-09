@@ -39,11 +39,15 @@ int fpga_avalon_open(void)
                    FPGA_AVALON_BASE);
 
     if (av_base == MAP_FAILED) {
-        perror("fpga_avalon_open: mmap failed");
-        close(mem_fd);
-        mem_fd = -1;
-        return -1;
-    }
+    perror("fpga_avalon_open: mmap failed");
+    fprintf(stderr, "  base=0x%08lX size=0x%X fd=%d\n",
+            (unsigned long)FPGA_AVALON_BASE,
+            (unsigned)FPGA_AVALON_MAP_SIZE,
+            mem_fd);
+    close(mem_fd);
+    mem_fd = -1;
+    return -1;
+}
 
     printf("Avalon bridge mapped: phys=0x%08lX virt=%p\n",
            (unsigned long)FPGA_AVALON_BASE, av_base);
