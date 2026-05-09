@@ -125,8 +125,8 @@ void fpga_avalon_close(void)
 void print_kalman_result(const kalman_result_t *res, const imu_angle_frame_t *angles)
 {
     printf("roll=%f pitch=%f | Kalman -> roll=%f pitch=%f\n", 
-            q39_to_float(angles->roll),
-            q39_to_float(angles->pitch),
-            q39_to_float(res->kalman_roll),
-            q39_to_float(res->kalman_pitch));
+            q39_to_float(angles->roll)*57.2958f,  /* convert to degrees for easier reading */
+            q39_to_float(angles->pitch)*57.2958f,
+            q39_to_float(res->kalman_roll)*57.2958f,
+            q39_to_float(res->kalman_pitch)*57.2958f);
 }
