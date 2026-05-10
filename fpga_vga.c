@@ -13,7 +13,8 @@ static int mem_fd = -1;
 static void *vga_base = NULL;
 
 static float slope_filtered = 0.0f;
-const float alpha = 0.001f;
+static float pitch_filtered = 0.0f;
+const float alpha = 0.01f;
 
 static inline void vga_reg_write(uint32_t offset, uint32_t value)
 {
@@ -66,10 +67,12 @@ void fpga_vga_update(kalman_result_t *kalman_result)
     if (slope_f < -32768.0f) slope_f = -32768.0f;
 
     slope_filtered = alpha * slope_f + (1.0f - alpha) * slope_filtered;
+    pitch_filtered = alpha * pitch_q39 + (1.0f - alpha) * pitch_filtered;
 
     int16_t slope_q39 = (int16_t)slope_filtered;
+    int16_t pitch_q39_filtered = (int16_t)pitch_filtered;
 
-    uint32_t combined = ((uint32_t)(uint16_t)slope_q39 << 16)| ((uint32_t)pitch_q39 & 0x0FFF);
+    uint32_t combined = ((uint32_t)(uint16_t)slope_q39 << 16)| ((uint32_t)pitch_q39_filtered & 0x0FFF);
     vga_reg_write(VGA_REG_PITCH_SLOPE, combined);
 }
 
