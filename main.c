@@ -96,6 +96,9 @@ int main(void)
             break;
         }
 
+        //test with raw roll
+        kalman_result.kalman_roll = angles.roll;
+
         fpga_vga_update(&kalman_result);
 
         //imu_angles_print(&angles);
