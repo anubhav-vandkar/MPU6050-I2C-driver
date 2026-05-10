@@ -98,7 +98,8 @@ int main(void)
 
         fpga_vga_update(&kalman_result);
 
-        imu_angles_print(&angles);
+        //imu_angles_print(&angles);
+        print_kalman_result(&kalman_result, &angles);
 
         nanosleep(&sleep_time, NULL);
     }
