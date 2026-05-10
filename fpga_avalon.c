@@ -9,7 +9,7 @@
 #include <unistd.h>
 #include <sys/mman.h>
 
-static int    mem_fd  = -1;
+static int mem_fd  = -1;
 static void  *av_base = NULL;
 
 static inline void reg_write(uint32_t offset, uint32_t value)

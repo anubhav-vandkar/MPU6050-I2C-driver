@@ -97,7 +97,7 @@ int main(void)
         }
 
         //test with raw roll
-        kalman_result.kalman_roll = angles.roll;
+        //kalman_result.kalman_roll = angles.roll;
 
         fpga_vga_update(&kalman_result);
 
