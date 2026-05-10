@@ -75,7 +75,6 @@ module vga_ball(input  logic        clk,
     end
   end
 
-  /* ── Register write logic ───────────────────────────────────── */
   always_ff @(posedge clk) begin
     if (reset) begin
       pitch_q39 <= 12'h0;
@@ -89,13 +88,11 @@ module vga_ball(input  logic        clk,
       endcase
   end
 
-  /* ── Pixel colour selection ─────────────────────────────────── */
   always_comb begin
     {VGA_R, VGA_G, VGA_B} = {8'h0, 8'h0, 8'h0};
     if (VGA_BLANK_n) begin
       if (in_circle && on_line)
-        /* horizon line -- red */
-        {VGA_R, VGA_G, VGA_B} = {8'hFF, 8'h00, 8'h00};
+        {VGA_R, VGA_G, VGA_B} = {8'h00, 8'hff, 8'hff};
       else if (in_circle)
         /* circle body -- white */
         {VGA_R, VGA_G, VGA_B} = {8'hFF, 8'hFF, 8'hFF};
