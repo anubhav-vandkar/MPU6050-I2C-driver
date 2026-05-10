@@ -4,13 +4,13 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <time.h>
+#include <signal.h>
 
 #include "mpu6050.h"
 #include "imu_calibrate.h"
 #include "imu_angles.h"
 #include "fpga_avalon.h"
-
-#include <signal.h>
+#include "fpga_vga.h"
 
 static volatile int running = 1;
 
@@ -29,7 +29,10 @@ int main(void)
     uint16_t sample_count = 0;
     int ret;
 
-    struct timespec sleep_time = { 0, 1000000 };   /* 1 ms */
+    struct timespec sleep_time = { 0, 1000000 };
+
+    signal(SIGINT,  signal_handler);
+    signal(SIGTERM, signal_handler);
 
     // sensor init
     if (mpu6050_init() < 0) {
@@ -52,10 +55,18 @@ int main(void)
         return 1;
     }
 
-    printf("Starting read loop\n");
+    // VGA init
+    if (fpga_vga_open() < 0) {
+        fprintf(stderr, "VGA open failed.\n");
+        fpga_avalon_close();
+        mpu6050_close();
+        return 1;
+    }
 
-    signal(SIGINT,  signal_handler);
-    signal(SIGTERM, signal_handler);
+    fpga_vga_set_background(0x00, 0x00, 0x80);
+
+    /* -- 5. Read loop ------------------------------------------- */
+    printf("Starting. Ctrl+C to stop.\n\n");
 
     while (running) {
         ret = mpu6050_read_frame(&raw, &sample_count);
@@ -90,13 +101,22 @@ int main(void)
          * TODO: pass to VGA computation, e.g.:
          *   vga_update(&kalman_result);
          */
-        
-        print_kalman_result(&kalman_result, &angles);
-        //printf("  kalman -> roll=0x%08X pitch=0x%08X\n", kalman_result.kalman_roll, kalman_result.kalman_pitch);
+
+        int16_t filtered_pitch = (int16_t)(kalman_result.kalman_pitch & 0x0FFF);
+        int16_t filtered_roll  = (int16_t)(kalman_result.kalman_roll & 0x0FFF);
+
+        /* sign extend 12-bit values */
+        filtered_pitch = (int16_t)(filtered_pitch << 4) >> 4;
+        filtered_roll  = (int16_t)(filtered_roll  << 4) >> 4;
+
+        fpga_vga_update(filtered_pitch, filtered_roll);
+
+        imu_angles_print(&angles);
 
         nanosleep(&sleep_time, NULL);
     }
 
+    fpga_vga_close();
     fpga_avalon_close();
     mpu6050_close();
     return 0;

@@ -23,7 +23,7 @@ typedef struct {
     uint32_t kalman_pitch;
 } kalman_result_t;
 
-#define FPGA_POLL_TIMEOUT_US 500000
+#define FPGA_POLL_TIMEOUT_US 50000
 
 int fpga_avalon_open(void);
 
