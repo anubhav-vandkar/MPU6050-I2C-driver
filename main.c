@@ -96,20 +96,7 @@ int main(void)
             break;
         }
 
-        /*
-         * kalman_result.result_0 and result_1 hold the Kalman output.
-         * TODO: pass to VGA computation, e.g.:
-         *   vga_update(&kalman_result);
-         */
-
-        int16_t filtered_pitch = (int16_t)(kalman_result.kalman_pitch & 0x0FFF);
-        int16_t filtered_roll  = (int16_t)(kalman_result.kalman_roll & 0x0FFF);
-
-        /* sign extend 12-bit values */
-        filtered_pitch = (int16_t)(filtered_pitch << 4) >> 4;
-        filtered_roll  = (int16_t)(filtered_roll  << 4) >> 4;
-
-        fpga_vga_update(filtered_pitch, filtered_roll);
+        fpga_vga_update(&kalman_result);
 
         imu_angles_print(&angles);
 

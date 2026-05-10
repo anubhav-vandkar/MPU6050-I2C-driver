@@ -4,6 +4,7 @@
 #define FPGA_VGA_H
 
 #include <stdint.h>
+#include "fpga_avalon.h"
 
 #define FPGA_VGA_BASE 0xFF200000UL
 #define FPGA_VGA_MAP_SIZE 0x1000
@@ -17,7 +18,7 @@ int  fpga_vga_open(void);
 
 void fpga_vga_set_background(uint8_t r, uint8_t g, uint8_t b);
 
-void fpga_vga_update(int16_t pitch_q39, int16_t roll_q39);
+void fpga_vga_update(kalman_result_t *kalman_result);
 
 void fpga_vga_close(void);
 
