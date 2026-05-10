@@ -9,7 +9,7 @@
 #include <sys/mman.h>
 #include <math.h>
 
-static int   mem_fd   = -1;
+static int mem_fd = -1;
 static void *vga_base = NULL;
 
 static inline void vga_reg_write(uint32_t offset, uint32_t value)
@@ -40,8 +40,7 @@ int fpga_vga_open(void)
         return -1;
     }
 
-    printf("VGA peripheral mapped: phys=0x%08lX virt=%p\n",
-           (unsigned long)FPGA_VGA_BASE, vga_base);
+    printf("VGA peripheral mapped: phys=0x%08lX virt=%p\n", (unsigned long)FPGA_VGA_BASE, vga_base);
     return 0;
 }
 
