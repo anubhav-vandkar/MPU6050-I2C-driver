@@ -13,7 +13,7 @@ static int mem_fd = -1;
 static void *vga_base = NULL;
 
 static float slope_filtered = 0.0f;
-const float alpha = 0.1f;
+const float alpha = 0.001f;
 
 static inline void vga_reg_write(uint32_t offset, uint32_t value)
 {
