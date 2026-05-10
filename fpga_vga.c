@@ -53,7 +53,6 @@ void fpga_vga_set_background(uint8_t r, uint8_t g, uint8_t b)
 
 void fpga_vga_update(int16_t pitch_q39, int16_t roll_q39)
 {
-    uint32_t pitch_word = (uint32_t)((int32_t)pitch_q39 & 0x0FFF);
 
     float roll_rad  = (float)((int16_t)(roll_q39 << 4) >> 4) / 512.0f;
     float slope_f   = tanf(roll_rad) * 512.0f;
@@ -62,7 +61,6 @@ void fpga_vga_update(int16_t pitch_q39, int16_t roll_q39)
     if (slope_f < -32768.0f) slope_f = -32768.0f;
 
     int16_t  slope_q39  = (int16_t)slope_f;
-    uint32_t slope_word = (uint32_t)(uint16_t)slope_q39;
 
     uint32_t combined = ((uint32_t)(uint16_t)slope_q39 << 16)| ((uint32_t)pitch_q39 & 0x0FFF);
     vga_reg_write(VGA_REG_PITCH_SLOPE, combined);
