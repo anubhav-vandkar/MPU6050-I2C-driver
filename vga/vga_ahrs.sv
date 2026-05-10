@@ -93,9 +93,6 @@ module vga_ball(input  logic        clk,
     if (VGA_BLANK_n) begin
       if (in_circle && on_line)
         {VGA_R, VGA_G, VGA_B} = {8'h00, 8'hff, 8'hff};
-      else if (in_circle)
-        /* circle body -- white */
-        {VGA_R, VGA_G, VGA_B} = {8'hFF, 8'hFF, 8'hFF};
       else
         /* static sky/ground background */
         {VGA_R, VGA_G, VGA_B} = {bg_r, bg_g, bg_b};
