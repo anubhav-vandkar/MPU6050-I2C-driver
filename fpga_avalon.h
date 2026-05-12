@@ -5,18 +5,18 @@
 #include "imu_angles.h"
 
 //addresses
-#define FPGA_AVALON_BASE 0xFF200000UL
+#define FPGA_AVALON_BASE 0xFF240000UL
 #define FPGA_AVALON_MAP_SIZE 0x1000
 
 //register offsets
-#define REG_ROLL 0x40
-#define REG_PITCH 0x44
-#define REG_GX 0x48
-#define REG_GY 0x4C
-#define REG_DATA_READY 0x50
-#define REG_DATA_STATUS 0x54
-#define REG_RESULT_ROLL 0x58
-#define REG_RESULT_PITCH 0x5C
+#define REG_ROLL 0x00
+#define REG_PITCH 0x04
+#define REG_GX 0x08
+#define REG_GY 0x0C
+#define REG_DATA_READY 0x10
+#define REG_DATA_STATUS 0x14
+#define REG_RESULT_ROLL 0x18
+#define REG_RESULT_PITCH 0x1C
 
 typedef struct {
     uint32_t kalman_roll;
