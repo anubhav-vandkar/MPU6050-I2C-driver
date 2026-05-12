@@ -5,9 +5,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include <sys/mman.h>
-#include <time.h>
 #include <unistd.h>
 
 #ifndef M_PI
@@ -15,85 +13,451 @@
 #endif
 
 enum {
-    VGA_WIDTH       = 640,
-    VGA_HEIGHT      = 480,
-    MAX_SEGMENTS    = 4,
+    VGA_WIDTH  = 640,
+    VGA_HEIGHT = 480,
 
-    VGA_BUF0_WORD   = 0x0000,
-    VGA_BUF1_WORD   = 0x0800,
-    VGA_CTRL_WORD   = 0x1000,
+    // 16 packed 32-bit segment words per row
+    WORDS_PER_ROW = 16,
 
-    SEG_SKY         = 0,
-    SEG_GROUND      = 1,
-    SEG_HORIZON     = 2,
-    SEG_MARKER      = 3,
-
-    KALMAN_ROLL_WORD  = 0x0006,
-    KALMAN_PITCH_WORD = 0x0007,
+    // Word addresses in the VGA peripheral (32-bit registers)
+    // Buffer 0: 0x0000..0x1DFF
+    // Buffer 1: 0x1E00..0x3BFF
+    // Control : 0x3C00
+    VGA_BUF0_WORD = 0x0000,
+    VGA_BUF1_WORD = 0x1E00,
+    VGA_CTRL_WORD = 0x3C00,
 };
 
-/* Physical addresses.
- *
- * On Cyclone V the HPS lightweight HPS-to-FPGA bridge starts at
- * 0xFF200000. Add the offset assigned to each peripheral in Platform
- * Designer. Adjust to match your project. */
-#define LWH2F_BASE        0xFF200000u
-#define VGA_PHYS_BASE     (LWH2F_BASE + 0x0000u)
-#define KALMAN_PHYS_BASE  (LWH2F_BASE + 0x0040u)
+#define VGA_PHYS_BASE    0xff200000u
+#define VGA_MAP_LEN      0x4000u
 
-#define VGA_MAP_SIZE      0x8000u   /* covers up to word 0x1000 */
-#define KALMAN_MAP_SIZE   0x0100u
+static const float PIXELS_PER_DEGREE   = 4.0f;
+static const float LINE_THICKNESS_PX   = 5.0f;
+static const float LADDER_THICKNESS_PX = 3.0f;
+static const float LADDER_HALF_LEN_PX  = 90.0f;
+static const float ROLL_SIGN           = -1.0f;
+static const float PITCH_SIGN          =  1.0f;
 
-/* Tuning */
-static const float PIXELS_PER_DEGREE = 4.0f;
-static const float LINE_THICKNESS_PX = 5.0f;
-static const float ROLL_SIGN  = -1.0f;
-static const float PITCH_SIGN =  1.0f;
+static const int INFO_BAR_HEIGHT = 24;
 
-/* Print the current angles to stderr once per N frames; useful when
- * bringing up the Kalman link. Set to 0 to disable. */
-#define PRINT_EVERY_N_FRAMES  30
+enum {
+    COLOR_SKY     = 0x01,  // blue
+    COLOR_GRASS   = 0x02,  // green
+    COLOR_HORIZON = 0x03,  // white
+    COLOR_LADDER  = 0x04,  // yellow
+    COLOR_TEXT    = 0x03   // white
+};
 
-/* --------------------------------------------------------------- */
+#define FONT_W 5
+#define FONT_H 7
+#define FONT_ADV 6
+
+static volatile uint32_t *g_vga_words = NULL;
+
 static inline int clamp_int(int v, int lo, int hi) {
-    if (v < lo) return lo;
-    if (v > hi) return hi;
+    if(v < lo) return lo;
+    if(v > hi) return hi;
     return v;
 }
 
-static inline int16_t sign_extend_12(uint16_t v) {
-    v &= 0x0FFF;
-    if (v & 0x0800) v |= 0xF000;
-    return (int16_t)v;
+typedef struct {
+    float x;
+    float y;
+} point_t;
+
+static inline uint32_t pack_segment_word(int xs, int xe, uint8_t color) {
+    xs = clamp_int(xs, 0, 0x0FFF);
+    xe = clamp_int(xe, 0, 0x0FFF);
+
+    if(xe <= xs) {
+        return 0;
+    }
+
+    return ((uint32_t)(color & 0xFFu) << 24) |
+           ((uint32_t)(xe    & 0x0FFFu) << 12) |
+           ((uint32_t)(xs    & 0x0FFFu) << 0);
 }
 
-static inline float q3_9_to_float_deg(uint32_t word) {
-    int16_t raw = sign_extend_12((uint16_t)word);
-    return (float)raw / 512.0f;
+static inline void append_segment(uint32_t row_words[WORDS_PER_ROW],
+                                  int *seg_count,
+                                  int xs,
+                                  int xe,
+                                  uint8_t color) {
+    if(*seg_count >= WORDS_PER_ROW) {
+        return;
+    }
+
+    uint32_t packed = pack_segment_word(xs, xe, color);
+    if(packed == 0) {
+        return;
+    }
+
+    row_words[*seg_count] = packed;
+    (*seg_count)++;
 }
 
-/* --------------------------------------------------------------- */
-static void *map_peripheral(int fd, off_t phys_base, size_t length) {
-    long page_size = sysconf(_SC_PAGESIZE);
-    if (page_size <= 0) { perror("sysconf"); exit(1); }
+static const uint8_t *glyph_rows(char ch) {
+    static const uint8_t SPACE[FONT_H] = {
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+    };
+    static const uint8_t P[FONT_H] = {
+        0x1E, 0x11, 0x11, 0x1E, 0x10, 0x10, 0x10
+    };
+    static const uint8_t I[FONT_H] = {
+        0x1F, 0x04, 0x04, 0x04, 0x04, 0x04, 0x1F
+    };
+    static const uint8_t T[FONT_H] = {
+        0x1F, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04
+    };
+    static const uint8_t C[FONT_H] = {
+        0x0E, 0x11, 0x10, 0x10, 0x10, 0x11, 0x0E
+    };
+    static const uint8_t H[FONT_H] = {
+        0x11, 0x11, 0x11, 0x1F, 0x11, 0x11, 0x11
+    };
+    static const uint8_t R[FONT_H] = {
+        0x1E, 0x11, 0x11, 0x1E, 0x14, 0x12, 0x11
+    };
+    static const uint8_t O[FONT_H] = {
+        0x0E, 0x11, 0x11, 0x11, 0x11, 0x11, 0x0E
+    };
+    static const uint8_t L[FONT_H] = {
+        0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x1F
+    };
+    static const uint8_t PLUS[FONT_H] = {
+        0x00, 0x04, 0x04, 0x1F, 0x04, 0x04, 0x00
+    };
+    static const uint8_t MINUS[FONT_H] = {
+        0x00, 0x00, 0x00, 0x1F, 0x00, 0x00, 0x00
+    };
+    static const uint8_t DOT[FONT_H] = {
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x04
+    };
+    static const uint8_t COLON[FONT_H] = {
+        0x00, 0x04, 0x04, 0x00, 0x04, 0x04, 0x00
+    };
 
-    off_t page_base = phys_base & ~((off_t)page_size - 1);
-    off_t page_off  = phys_base - page_base;
-    size_t map_len  = (size_t)page_off + length;
+    static const uint8_t D0[FONT_H] = {
+        0x0E, 0x11, 0x13, 0x15, 0x19, 0x11, 0x0E
+    };
+    static const uint8_t D1[FONT_H] = {
+        0x04, 0x0C, 0x04, 0x04, 0x04, 0x04, 0x0E
+    };
+    static const uint8_t D2[FONT_H] = {
+        0x0E, 0x11, 0x01, 0x02, 0x04, 0x08, 0x1F
+    };
+    static const uint8_t D3[FONT_H] = {
+        0x1E, 0x01, 0x01, 0x0E, 0x01, 0x01, 0x1E
+    };
+    static const uint8_t D4[FONT_H] = {
+        0x02, 0x06, 0x0A, 0x12, 0x1F, 0x02, 0x02
+    };
+    static const uint8_t D5[FONT_H] = {
+        0x1F, 0x10, 0x10, 0x1E, 0x01, 0x01, 0x1E
+    };
+    static const uint8_t D6[FONT_H] = {
+        0x0E, 0x10, 0x10, 0x1E, 0x11, 0x11, 0x0E
+    };
+    static const uint8_t D7[FONT_H] = {
+        0x1F, 0x01, 0x02, 0x04, 0x08, 0x08, 0x08
+    };
+    static const uint8_t D8[FONT_H] = {
+        0x0E, 0x11, 0x11, 0x0E, 0x11, 0x11, 0x0E
+    };
+    static const uint8_t D9[FONT_H] = {
+        0x0E, 0x11, 0x11, 0x0F, 0x01, 0x01, 0x0E
+    };
 
-    void *m = mmap(NULL, map_len, PROT_READ | PROT_WRITE,
-                   MAP_SHARED, fd, page_base);
-    if (m == MAP_FAILED) { perror("mmap"); exit(1); }
-    return (uint8_t *)m + page_off;
+    switch(ch) {
+        case 'P': return P;
+        case 'I': return I;
+        case 'T': return T;
+        case 'C': return C;
+        case 'H': return H;
+        case 'R': return R;
+        case 'O': return O;
+        case 'L': return L;
+        case '+': return PLUS;
+        case '-': return MINUS;
+        case '.': return DOT;
+        case ':': return COLON;
+        case '0': return D0;
+        case '1': return D1;
+        case '2': return D2;
+        case '3': return D3;
+        case '4': return D4;
+        case '5': return D5;
+        case '6': return D6;
+        case '7': return D7;
+        case '8': return D8;
+        case '9': return D9;
+        case ' ': return SPACE;
+        default:  return SPACE;
+    }
 }
 
-/* --------------------------------------------------------------- */
-static void build_segments(
-    float roll_deg, float pitch_deg,
-    uint16_t seg_xstart[VGA_HEIGHT][MAX_SEGMENTS],
-    uint16_t seg_xstop [VGA_HEIGHT][MAX_SEGMENTS])
-{
-    const float cx  = (VGA_WIDTH  - 1) * 0.5f;
+static void draw_text_row(uint32_t row_words[WORDS_PER_ROW],
+                          int *seg_count,
+                          int row,
+                          int start_x,
+                          int start_y,
+                          const char *text,
+                          uint8_t color) {
+    if(row < start_y || row >= (start_y + FONT_H)) {
+        return;
+    }
+
+    const int glyph_row = row - start_y;
+    int x = start_x;
+
+    for(const char *p = text; *p != '\0'; ++p) {
+        const uint8_t *g = glyph_rows(*p);
+        uint8_t bits = g[glyph_row] & 0x1Fu;
+
+        int col = 0;
+        while(col < FONT_W) {
+            if((bits & (1u << (FONT_W - 1 - col))) == 0u) {
+                ++col;
+                continue;
+            }
+
+            int run_start = col;
+            while(col < FONT_W && (bits & (1u << (FONT_W - 1 - col))) != 0u) {
+                ++col;
+            }
+            int run_end = col - 1;
+
+            append_segment(row_words, seg_count, x + run_start, x + run_end, color);
+            if(*seg_count >= WORDS_PER_ROW) {
+                return;
+            }
+        }
+
+        x += FONT_ADV;
+        if(x >= VGA_WIDTH) {
+            return;
+        }
+    }
+}
+
+static int gather_scanline_intersections(float scan_y, const point_t p[4], float xs_out[4]) {
+    int n = 0;
+
+    for(int i = 0; i < 4; ++i) {
+        point_t a = p[i];
+        point_t b = p[(i + 1) & 3];
+
+        if(fabsf(a.y - b.y) < 1e-6f) {
+            continue;
+        }
+
+        float ymin = fminf(a.y, b.y);
+        float ymax = fmaxf(a.y, b.y);
+
+        // Half-open interval avoids double counting at vertices.
+        if(scan_y >= ymin && scan_y < ymax) {
+            float t = (scan_y - a.y) / (b.y - a.y);
+            float x = a.x + t * (b.x - a.x);
+
+            int duplicate = 0;
+            for(int j = 0; j < n; ++j) {
+                if(fabsf(xs_out[j] - x) < 0.5f) {
+                    duplicate = 1;
+                    break;
+                }
+            }
+
+            if(!duplicate && n < 4) {
+                xs_out[n++] = x;
+            }
+        }
+    }
+
+    if(n < 2) {
+        return 0;
+    }
+
+    for(int i = 0; i < n - 1; ++i) {
+        for(int j = i + 1; j < n; ++j) {
+            if(xs_out[j] < xs_out[i]) {
+                float tmp = xs_out[i];
+                xs_out[i] = xs_out[j];
+                xs_out[j] = tmp;
+            }
+        }
+    }
+
+    return n;
+}
+
+static void add_thick_segment_row(uint32_t row_words[WORDS_PER_ROW],
+                                  int *seg_count,
+                                  int row,
+                                  float x0, float y0,
+                                  float x1, float y1,
+                                  float thickness_px,
+                                  uint8_t color) {
+    if(*seg_count >= WORDS_PER_ROW) {
+        return;
+    }
+
+    float half_t = thickness_px * 0.5f;
+    float scan_y = (float)row;
+
+    // Horizontal segment special-case
+    if(fabsf(y1 - y0) < 1e-6f) {
+        if(fabsf(scan_y - y0) > half_t) {
+            return;
+        }
+
+        int xs = (int)ceilf(fminf(x0, x1));
+        int xe = (int)floorf(fmaxf(x0, x1));
+        append_segment(row_words, seg_count, xs, xe, color);
+        return;
+    }
+
+    float dx = x1 - x0;
+    float dy = y1 - y0;
+    float len = sqrtf(dx * dx + dy * dy);
+    if(len < 1e-6f) {
+        return;
+    }
+
+    float nx = -dy / len;
+    float ny =  dx / len;
+
+    point_t poly[4];
+    poly[0].x = x0 + nx * half_t;  poly[0].y = y0 + ny * half_t;
+    poly[1].x = x1 + nx * half_t;  poly[1].y = y1 + ny * half_t;
+    poly[2].x = x1 - nx * half_t;  poly[2].y = y1 - ny * half_t;
+    poly[3].x = x0 - nx * half_t;  poly[3].y = y0 - ny * half_t;
+
+    float xs[4];
+    int n = gather_scanline_intersections(scan_y, poly, xs);
+    if(n < 2) {
+        return;
+    }
+
+    float xmin = xs[0];
+    float xmax = xs[0];
+    for(int i = 1; i < n; ++i) {
+        if(xs[i] < xmin) xmin = xs[i];
+        if(xs[i] > xmax) xmax = xs[i];
+    }
+
+    int ix0 = (int)ceilf(xmin);
+    int ix1 = (int)floorf(xmax);
+    append_segment(row_words, seg_count, ix0, ix1, color);
+}
+
+static void add_horizon_row(uint32_t row_words[WORDS_PER_ROW],
+                            int *seg_count,
+                            int y,
+                            float cx,
+                            float cy,
+                            float s,
+                            float c) {
+    const float half_thickness = LINE_THICKNESS_PX * 0.5f;
+    const float fy = (float)y;
+
+    if(fabsf(s) < 1e-6f) {
+        if(fabsf(fy - cy) <= half_thickness) {
+            append_segment(row_words, seg_count, 0, VGA_WIDTH - 1, COLOR_HORIZON);
+        } else if(fy < cy) {
+            append_segment(row_words, seg_count, 0, VGA_WIDTH - 1, COLOR_SKY);
+        } else {
+            append_segment(row_words, seg_count, 0, VGA_WIDTH - 1, COLOR_GRASS);
+        }
+        return;
+    }
+
+    float x1 = cx + ((((float)y - cy) * c) - half_thickness) / s;
+    float x2 = cx + ((((float)y - cy) * c) + half_thickness) / s;
+
+    if(x1 > x2) {
+        float tmp = x1;
+        x1 = x2;
+        x2 = tmp;
+    }
+
+    // If the entire horizon band is off-screen, color the row based on which
+    // side of the horizon this scanline lies on.
+    if(x2 < 0.0f) {
+        append_segment(row_words, seg_count, 0, VGA_WIDTH - 1,
+                       (s > 0.0f) ? COLOR_GRASS : COLOR_SKY);
+        return;
+    }
+    if(x1 > (float)(VGA_WIDTH - 1)) {
+        append_segment(row_words, seg_count, 0, VGA_WIDTH - 1,
+                       (s > 0.0f) ? COLOR_SKY : COLOR_GRASS);
+        return;
+    }
+
+    int xs = (int)ceilf(x1);
+    int xe = (int)floorf(x2);
+
+    xs = clamp_int(xs, 0, VGA_WIDTH - 1);
+    xe = clamp_int(xe, 0, VGA_WIDTH - 1);
+
+    if(xe <= xs) {
+        // Degenerate row, fall back to a full-row side color.
+        append_segment(row_words, seg_count, 0, VGA_WIDTH - 1,
+                       (s > 0.0f) ? COLOR_SKY : COLOR_GRASS);
+        return;
+    }
+
+    uint8_t before_color = (s > 0.0f) ? COLOR_SKY   : COLOR_GRASS;
+    uint8_t after_color  = (s > 0.0f) ? COLOR_GRASS : COLOR_SKY;
+
+    if(xs > 0) {
+        append_segment(row_words, seg_count, 0, xs - 1, before_color);
+    }
+    append_segment(row_words, seg_count, xs, xe, COLOR_HORIZON);
+    if(xe < VGA_WIDTH - 1) {
+        append_segment(row_words, seg_count, xe + 1, VGA_WIDTH - 1, after_color);
+    }
+}
+
+static void add_pitch_ladder_rows(uint32_t row_words[WORDS_PER_ROW],
+                                  int *seg_count,
+                                  int y,
+                                  float cx,
+                                  float cy0,
+                                  float pitch_deg,
+                                  float s,
+                                  float c) {
+    // Major ladder marks, symmetrical around the horizon.
+    static const float ladder_offsets_deg[] = {
+        -60.0f, -50.0f, -40.0f, -30.0f, -20.0f, -10.0f,
+         10.0f,  20.0f,  30.0f,  40.0f,  50.0f,  60.0f
+    };
+
+    for(int i = 0; i < (int)(sizeof(ladder_offsets_deg) / sizeof(ladder_offsets_deg[0])); ++i) {
+        if(*seg_count >= WORDS_PER_ROW) {
+            return;
+        }
+
+        float ladder_pitch = pitch_deg + ladder_offsets_deg[i];
+        float line_cy = cy0 + (PITCH_SIGN * ladder_pitch * PIXELS_PER_DEGREE);
+
+        // Center the ladder segment around the middle of the screen and rotate it
+        // with the horizon.
+        float dx = LADDER_HALF_LEN_PX * c;
+        float dy = LADDER_HALF_LEN_PX * s;
+
+        float x0 = cx - dx;
+        float y0 = line_cy - dy;
+        float x1 = cx + dx;
+        float y1 = line_cy + dy;
+
+        add_thick_segment_row(row_words, seg_count, y, x0, y0, x1, y1, LADDER_THICKNESS_PX, COLOR_LADDER);
+    }
+}
+
+void ahrs_display_build_frame(float roll_deg,
+                              float pitch_deg,
+                              uint32_t frame[VGA_HEIGHT][WORDS_PER_ROW]) {
+    const float cx = (VGA_WIDTH - 1) * 0.5f;
     const float cy0 = (VGA_HEIGHT - 1) * 0.5f;
 
     const float theta = ROLL_SIGN * roll_deg * (float)M_PI / 180.0f;
@@ -101,179 +465,104 @@ static void build_segments(
     const float c = cosf(theta);
 
     const float cy = cy0 + (PITCH_SIGN * pitch_deg * PIXELS_PER_DEGREE);
-    const float half = LINE_THICKNESS_PX * 0.5f;
 
-    const int sky_side_positive = (c < 0.0f);
+    char pitch_text[32];
+    char roll_text[32];
+    snprintf(pitch_text, sizeof(pitch_text), "PITCH %+.1f", pitch_deg);
+    snprintf(roll_text, sizeof(roll_text),  "ROLL  %+.1f", roll_deg);
 
-    memset(seg_xstart, 0, sizeof(uint16_t) * VGA_HEIGHT * MAX_SEGMENTS);
-    memset(seg_xstop, 0, sizeof(uint16_t) * VGA_HEIGHT * MAX_SEGMENTS);
-
-    for (int y = 0; y < VGA_HEIGHT; ++y) {
-        int line_xs = 0, line_xe = 0;
-        int has_line = 0;
-
-        if (fabsf(s) < 1e-6f) {
-            if (fabsf((float)y - cy) <= half) {
-                line_xs = 0;
-                line_xe = VGA_WIDTH - 1;
-                has_line = 1;
-            }
-        } else {
-            float x1 = cx + ((((float)y - cy) * c) - half) / s;
-            float x2 = cx + ((((float)y - cy) * c) + half) / s;
-            if (x1 > x2) { float t = x1; x1 = x2; x2 = t; }
-
-            int xs = clamp_int((int)ceilf(x1),  0, VGA_WIDTH - 1);
-            int xe = clamp_int((int)floorf(x2), 0, VGA_WIDTH - 1);
-
-            if (xe > xs) {
-                line_xs = xs;
-                line_xe = xe;
-                has_line = 1;
-            }
+    for(int y = 0; y < VGA_HEIGHT; ++y) {
+        for(int i = 0; i < WORDS_PER_ROW; ++i) {
+            frame[y][i] = 0;
         }
 
-        if (has_line) {
-            int left_has  = (line_xs > 0);
-            int right_has = (line_xe < VGA_WIDTH - 1);
+        int seg_count = 0;
 
-            int left_is_sky  = 0;
-            int right_is_sky = 0;
-
-            if (fabsf(s) < 1e-6f) {
-                left_is_sky  = ((float)y < cy);
-                right_is_sky = left_is_sky;
-            } else {
-                if (left_has) {
-                    float xp = (float)line_xs * 0.5f;
-                    float lhs = ((float)y - cy) * c - (xp - cx) * s;
-                    left_is_sky = ((lhs > 0.0f) == sky_side_positive);
-                }
-                if (right_has) {
-                    float xp = ((float)line_xe + (float)(VGA_WIDTH - 1)) * 0.5f;
-                    float lhs = ((float)y - cy) * c - (xp - cx) * s;
-                    right_is_sky = ((lhs > 0.0f) == sky_side_positive);
-                }
-            }
-
-            if (left_has) {
-                if (left_is_sky) {
-                    seg_xstart[y][SEG_SKY] = 0;
-                    seg_xstop [y][SEG_SKY] = (uint16_t)(line_xs - 1);
-                } else {
-                    seg_xstart[y][SEG_GROUND] = 0;
-                    seg_xstop [y][SEG_GROUND] = (uint16_t)(line_xs - 1);
-                }
-            }
-            if (right_has) {
-                if (right_is_sky) {
-                    seg_xstart[y][SEG_SKY] = (uint16_t)(line_xe + 1);
-                    seg_xstop [y][SEG_SKY] = (uint16_t)(VGA_WIDTH - 1);
-                } else {
-                    seg_xstart[y][SEG_GROUND] = (uint16_t)(line_xe + 1);
-                    seg_xstop [y][SEG_GROUND] = (uint16_t)(VGA_WIDTH - 1);
-                }
-            }
-
-            seg_xstart[y][SEG_HORIZON] = (uint16_t)line_xs;
-            seg_xstop [y][SEG_HORIZON] = (uint16_t)line_xe;
-        } else {
-            int row_is_sky;
-            if (fabsf(s) < 1e-6f) {
-                row_is_sky = ((float)y < cy);
-            } else {
-                float lhs = ((float)y - cy) * c;
-                row_is_sky = ((lhs > 0.0f) == sky_side_positive);
-            }
-            if (row_is_sky) {
-                seg_xstart[y][SEG_SKY] = 0;
-                seg_xstop [y][SEG_SKY] = (uint16_t)(VGA_WIDTH - 1);
-            } else {
-                seg_xstart[y][SEG_GROUND] = 0;
-                seg_xstop [y][SEG_GROUND] = (uint16_t)(VGA_WIDTH - 1);
-            }
+        if(y < INFO_BAR_HEIGHT) {
+            // Two-line black info bar. Empty space is black by default.
+            draw_text_row(frame[y], &seg_count, y, 8,  3, pitch_text, COLOR_TEXT);
+            draw_text_row(frame[y], &seg_count, y, 8, 13, roll_text,  COLOR_TEXT);
+            continue;
         }
+
+        // Base horizon/background.
+        add_horizon_row(frame[y], &seg_count, y, cx, cy, s, c);
+
+        // Pitch ladder lines on top of the horizon/background.
+        add_pitch_ladder_rows(frame[y], &seg_count, y, cx, cy0, pitch_deg, s, c);
     }
 }
 
-/* --------------------------------------------------------------- */
-static inline uint32_t pack_pos(uint16_t xstart, uint16_t xstop) {
-    return ((uint32_t)xstop << 16) | (uint32_t)xstart;
-}
-
-static void write_buffer(
-    volatile uint32_t *vga_words,
-    uint32_t base_word,
-    const uint16_t seg_xstart[VGA_HEIGHT][MAX_SEGMENTS],
-    const uint16_t seg_xstop [VGA_HEIGHT][MAX_SEGMENTS])
-{
-    for (int y = 0; y < VGA_HEIGHT; ++y) {
-        for (int seg = 0; seg < MAX_SEGMENTS; ++seg) {
-            uint32_t idx = (uint32_t)y * MAX_SEGMENTS + (uint32_t)seg;
-            vga_words[base_word + idx] = pack_pos(
-                seg_xstart[y][seg], seg_xstop[y][seg]);
-        }
+static void *map_peripheral(int fd, off_t phys_base, size_t length) {
+    long page_size = sysconf(_SC_PAGESIZE);
+    if(page_size <= 0) {
+        perror("sysconf");
+        exit(1);
     }
+
+    off_t page_base = phys_base & ~((off_t)page_size - 1);
+    off_t page_off  = phys_base - page_base;
+    size_t map_len  = (size_t)page_off + length;
+
+    void *map = mmap(NULL, map_len, PROT_READ | PROT_WRITE, MAP_SHARED, fd, page_base);
+    if(map == MAP_FAILED) {
+        perror("mmap");
+        exit(1);
+    }
+
+    return (uint8_t *)map + page_off;
 }
 
-static void request_swap(volatile uint32_t *vga_words, int next_buffer) {
+static int read_current_display_buffer(volatile uint32_t *vga_words) {
+    return (int)(vga_words[VGA_CTRL_WORD] & 0x1u);
+}
+
+static void request_buffer_swap(volatile uint32_t *vga_words, int next_buffer) {
     vga_words[VGA_CTRL_WORD] = (uint32_t)(next_buffer & 0x1);
 }
 
-/* --------------------------------------------------------------- */
-int main(void) {
-    int fd = open("/dev/mem", O_RDWR | O_SYNC);
-    if (fd < 0) { perror("open(/dev/mem)"); return 1; }
-
-    volatile uint32_t *vga_words = (volatile uint32_t *)map_peripheral(
-        fd, (off_t)VGA_PHYS_BASE, VGA_MAP_SIZE);
-
-    volatile uint32_t *kalman_words = (volatile uint32_t *)map_peripheral(
-        fd, (off_t)KALMAN_PHYS_BASE, KALMAN_MAP_SIZE);
-
-    static uint16_t seg_xstart[VGA_HEIGHT][MAX_SEGMENTS];
-    static uint16_t seg_xstop [VGA_HEIGHT][MAX_SEGMENTS];
-
-    int next_buffer = 0;
-    int frame = 0;
-
-    struct timespec next_tick;
-    clock_gettime(CLOCK_MONOTONIC, &next_tick);
-
-    for (;;) {
-        /* Read latest estimates from the Kalman filter */
-        uint32_t roll_word  = kalman_words[KALMAN_ROLL_WORD];
-        uint32_t pitch_word = kalman_words[KALMAN_PITCH_WORD];
-
-        float roll_deg  = q3_9_to_float_deg(roll_word);
-        float pitch_deg = q3_9_to_float_deg(pitch_word);
-
-#if PRINT_EVERY_N_FRAMES > 0
-        if ((frame % PRINT_EVERY_N_FRAMES) == 0) {
-            fprintf(stderr, "roll = %+7.2f  pitch = %+7.2f  "
-                    "(raw 0x%03X 0x%03X)\n",
-                    roll_deg, pitch_deg,
-                    roll_word & 0xFFF, pitch_word & 0xFFF);
+static void write_table_to_vga(volatile uint32_t *vga_words,
+                               uint32_t base_word,
+                               const uint32_t frame[VGA_HEIGHT][WORDS_PER_ROW]) {
+    for(int y = 0; y < VGA_HEIGHT; ++y) {
+        for(int seg = 0; seg < WORDS_PER_ROW; ++seg) {
+            vga_words[base_word + (uint32_t)y * WORDS_PER_ROW + (uint32_t)seg] = frame[y][seg];
         }
-#endif
+    }
+}
 
-        build_segments(roll_deg, pitch_deg, seg_xstart, seg_xstop);
-
-        uint32_t base = (next_buffer == 0) ? VGA_BUF0_WORD : VGA_BUF1_WORD;
-        write_buffer(vga_words, base, seg_xstart, seg_xstop);
-
-        request_swap(vga_words, next_buffer);
-        next_buffer ^= 1;
-        frame++;
-
-        next_tick.tv_nsec += 16666667L;
-        while (next_tick.tv_nsec >= 1000000000L) {
-            next_tick.tv_nsec -= 1000000000L;
-            next_tick.tv_sec  += 1;
-        }
-        clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &next_tick, NULL);
+void ahrs_display_init(void) {
+    if(g_vga_words != NULL) {
+        return;
     }
 
+    int fd = open("/dev/mem", O_RDWR | O_SYNC);
+    if(fd < 0) {
+        perror("open(/dev/mem)");
+        exit(1);
+    }
+
+    g_vga_words = (volatile uint32_t *)map_peripheral(fd, (off_t)VGA_PHYS_BASE, VGA_MAP_LEN);
     close(fd);
-    return 0;
+}
+
+void ahrs_display_render(float roll_deg, float pitch_deg) {
+    if(g_vga_words == NULL) {
+        ahrs_display_init();
+    }
+
+    static uint32_t frame[VGA_HEIGHT][WORDS_PER_ROW];
+
+    int current_buffer = read_current_display_buffer(g_vga_words);
+    int target_buffer   = current_buffer ^ 1;
+
+    ahrs_display_build_frame(roll_deg, pitch_deg, frame);
+
+    if(target_buffer == 0) {
+        write_table_to_vga(g_vga_words, VGA_BUF0_WORD, frame);
+    } else {
+        write_table_to_vga(g_vga_words, VGA_BUF1_WORD, frame);
+    }
+
+    request_buffer_swap(g_vga_words, target_buffer);
 }
