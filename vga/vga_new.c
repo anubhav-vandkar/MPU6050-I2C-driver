@@ -15,8 +15,6 @@
 enum {
     VGA_WIDTH  = 640,
     VGA_HEIGHT = 480,
-
-    // 16 packed 32-bit segment words per row
     WORDS_PER_ROW = 16,
 
     // Word addresses in the VGA peripheral (32-bit registers)
@@ -37,7 +35,6 @@ static const float LADDER_THICKNESS_PX = 3.0f;
 static const float LADDER_HALF_LEN_PX  = 90.0f;
 static const float ROLL_SIGN           = -1.0f;
 static const float PITCH_SIGN          =  1.0f;
-
 static const int INFO_BAR_HEIGHT = 24;
 
 enum {
@@ -66,7 +63,8 @@ typedef struct {
 } point_t;
 
 static inline float q3_9_to_float(uint16_t raw) {
-    int16_t signed_raw = (raw & 0x0800u) ? (int16_t)(raw | 0xF000u) : (int16_t)(raw & 0x0FFFu);
+    raw &= 0x0FFFu;
+    int16_t signed_raw = (raw & 0x0800u) ? (int16_t)(raw | 0xF000u) : (int16_t)raw;
     return (float)signed_raw / 512.0f;
 }
 
@@ -137,7 +135,6 @@ static const uint8_t *glyph_rows(char ch) {
     static const uint8_t COLON[FONT_H] = {
         0x00, 0x04, 0x04, 0x00, 0x04, 0x04, 0x00
     };
-
     static const uint8_t D0[FONT_H] = {
         0x0E, 0x11, 0x13, 0x15, 0x19, 0x11, 0x0E
     };
@@ -261,9 +258,7 @@ static int gather_scanline_intersections(float scan_y, const point_t p[4], float
         }
     }
 
-    if(n < 2) {
-        return 0;
-    }
+    if(n < 2) return 0;
 
     for(int i = 0; i < n - 1; ++i) {
         for(int j = i + 1; j < n; ++j) {
