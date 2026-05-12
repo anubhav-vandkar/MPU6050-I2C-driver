@@ -76,7 +76,7 @@ int mpu6050_calibrate(imu_bias_t *bias)
      */
     bias->ax = (int16_t)(sum_ax / CALIB_NUM_SAMPLES);
     bias->ay = (int16_t)(sum_ay / CALIB_NUM_SAMPLES);
-    bias->az = (int16_t)(sum_az / CALIB_NUM_SAMPLES - GRAVITY_LSB);
+    bias->az = (int16_t)(sum_az / CALIB_NUM_SAMPLES);
 
     bias->gx = (int16_t)(sum_gx / CALIB_NUM_SAMPLES);
     bias->gy = (int16_t)(sum_gy / CALIB_NUM_SAMPLES);
