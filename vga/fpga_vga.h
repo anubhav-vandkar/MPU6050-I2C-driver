@@ -4,7 +4,7 @@
 #define FPGA_VGA_H
 
 #include <stdint.h>
-#include "fpga_avalon.h"
+#include "../fpga_avalon.h"
 
 #define FPGA_VGA_BASE 0xFF200000UL
 #define FPGA_VGA_MAP_SIZE 0x1000

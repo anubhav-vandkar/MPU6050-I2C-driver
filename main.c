@@ -10,7 +10,7 @@
 #include "imu_calibrate.h"
 #include "imu_angles.h"
 #include "fpga_avalon.h"
-#include "fpga_vga.h"
+#include "vga/fpga_vga.h"
 
 static volatile int running = 1;
 
