@@ -40,19 +40,18 @@ module vga_ball(input  logic        clk,
 
   logic signed [9:0] dx_line;
   logic signed [9:0] dy_line;
-  logic signed [25:0] lhs;
-  logic signed [25:0] rhs;
-  logic signed [25:0] line_err;
+  logic signed [41:0] lhs;
+  logic signed [41:0] rhs;
+  logic signed [41:0] line_err;
   logic on_line;
 
   assign dx_line  = $signed({1'b0, hcount[10:1]}) - $signed({1'b0, CENTRE_X});
   assign dy_line  = $signed({1'b0, vcount[9:0]})  - $signed({1'b0, {1'b0, centre_y}});
 
-  assign lhs      = dy_line * 26'sd512;
-  assign rhs      = $signed(slope_q39) * $signed({{16{dx_line[9]}}, dx_line});
+  assign lhs      = $signed({{32{dy_line[9]}}, dy_line}) * 42'sd512;
+  assign rhs      = $signed({{26{slope_q39[15]}}, slope_q39}) * $signed({{32{dx_line[9]}}, dx_line});
   assign line_err = lhs - rhs;
-
-  assign on_line  = (line_err <= 26'sd512) && (line_err >= -26'sd512);
+  assign on_line  = (line_err <= 42'sd512) && (line_err >= -42'sd512);
 
   /* ── Background: sky blue top, ground green bottom ──────────── */
   /*
