@@ -124,12 +124,21 @@ void fpga_avalon_close(void)
 
 void print_kalman_result(const kalman_result_t *res, const imu_angle_frame_t *angles)
 {
-    printf("roll=%f pitch=%f gx=%f gy=%f| Kalman -> roll=%f pitch=%f\n", 
-            q39_to_float(angles->roll)*57.2958f,  /* convert to degrees for easier reading */
-            q39_to_float(angles->pitch)*57.2958f,
-            q39_to_float(angles->gx)*57.2958f,
-            q39_to_float(angles->gy)*57.2958f,
-            q39_to_float(res->kalman_roll)*57.2958f,
-            q39_to_float(res->kalman_pitch)*57.2958f
-            );
+    // printf("roll=%f pitch=%f gx=%f gy=%f| Kalman -> roll=%f pitch=%f\n", 
+    //         q39_to_float(angles->roll)*57.2958f,  /* convert to degrees for easier reading */
+    //         q39_to_float(angles->pitch)*57.2958f,
+    //         q39_to_float(angles->gx)*57.2958f,
+    //         q39_to_float(angles->gy)*57.2958f,
+    //         q39_to_float(res->kalman_roll)*57.2958f,
+    //         q39_to_float(res->kalman_pitch)*57.2958f
+    //         );
+
+    printf("roll=%d pitch=%d gx=%d gy=%d| Kalman -> roll=%d pitch=%d\n", 
+            (int32_t)angles->roll,  /* convert to degrees for easier reading */
+            (int32_t)angles->pitch,
+            (int32_t)angles->gx,
+            (int32_t)angles->gy,
+            (uint16_t)res->kalman_roll,
+            ( uint16_t)res->kalman_pitch
+    );
 }
