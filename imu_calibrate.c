@@ -63,17 +63,6 @@ int mpu6050_calibrate(imu_bias_t *bias)
 
     printf(" done (%d samples)\n", collected);
 
-    /*
-     * Average the accumulated sums.
-     *
-     * For accel: the bias is the average reading.
-     * For az we remove the expected gravity component so that after
-     * applying the bias, az reads 0 when still (makes the math cleaner
-     * downstream -- the Kalman filter adds gravity back explicitly).
-     *
-     * If you prefer to keep gravity in az, just remove the
-     * "- GRAVITY_LSB" line below.
-     */
     bias->ax = (int16_t)(sum_ax / CALIB_NUM_SAMPLES);
     bias->ay = (int16_t)(sum_ay / CALIB_NUM_SAMPLES);
     bias->az = (int16_t)(sum_az / CALIB_NUM_SAMPLES - GRAVITY_LSB);

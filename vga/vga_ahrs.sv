@@ -19,10 +19,10 @@ module vga_ball(input  logic        clk,
   logic signed [15:0] slope_q39;
 
   logic signed [31:0] pitch_scaled;
-  logic [8:0]  centre_y;
+  logic [8:0] centre_y;
 
   assign pitch_scaled = ($signed(pitch_q39) * 32'sd120) / 32'sd804;
-  assign centre_y     = 9'd240 - pitch_scaled[8:0];
+  assign centre_y = 9'd240 - pitch_scaled[8:0];
 
   logic [9:0] dx_u;
   logic [8:0] dy_u;
@@ -48,8 +48,8 @@ module vga_ball(input  logic        clk,
   assign dx_line  = $signed({1'b0, hcount[10:1]}) - $signed({1'b0, CENTRE_X});
   assign dy_line  = $signed({1'b0, vcount[9:0]})  - $signed({1'b0, {1'b0, centre_y}});
 
-  assign lhs      = $signed({{32{dy_line[9]}}, dy_line}) * 42'sd512;
-  assign rhs      = $signed({{26{slope_q39[15]}}, slope_q39}) * $signed({{32{dx_line[9]}}, dx_line});
+  assign lhs = $signed({{32{dy_line[9]}}, dy_line}) * 42'sd512;
+  assign rhs = $signed({{26{slope_q39[15]}}, slope_q39}) * $signed({{32{dx_line[9]}}, dx_line});
   assign line_err = lhs - rhs;
   assign on_line  = (line_err <= 42'sd512) && (line_err >= -42'sd512);
 

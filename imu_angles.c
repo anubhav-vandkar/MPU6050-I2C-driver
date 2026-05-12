@@ -34,12 +34,11 @@ void imu_compute_angles(const imu_raw_frame_t *raw, imu_angle_frame_t *out)
 
     float roll_rad  = atan2f(ay, az);
     float pitch_rad = atan2f(ax, sqrtf(ay*ay + az*az));
-    /* float tilt_rad = atan2f(sqrtf(ax*ax + ay*ay), az); */
+    // float tilt_rad = atan2f(sqrtf(ax*ax + ay*ay), az);
 
     // roll_filtered  = alpha * roll_rad  + (1.0f - alpha) * roll_filtered;
     // pitch_filtered = alpha * pitch_rad + (1.0f - alpha) * pitch_filtered;
 
-    /* convert to Q-format */
     int16_t roll_q39  = float_to_q39(roll_rad);
     int16_t pitch_q39 = float_to_q39(pitch_rad);
     int16_t gx_q39    = float_to_q39(gx);

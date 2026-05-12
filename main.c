@@ -64,7 +64,6 @@ int main(void)
 
     fpga_vga_set_background(0x00, 0x00, 0x80);
 
-    /* -- 5. Read loop ------------------------------------------- */
     printf("Starting. Ctrl+C to stop.\n\n");
 
     while (running) {
@@ -83,13 +82,13 @@ int main(void)
 
         imu_compute_angles(&raw, &angles);
 
-        /* write roll, pitch, gx, gy to Kalman Avalon registers */
+        // write values to Kalman Avalon registers 
         if (fpga_avalon_write(&angles) < 0) {
             fprintf(stderr, "Avalon write failed\n");
             break;
         }
 
-        /* poll until Kalman clears data_ready, read results back */
+        // poll until Kalman clears data_ready
         if (fpga_avalon_poll_read(&kalman_result, FPGA_POLL_TIMEOUT_US) < 0) {
             fprintf(stderr, "Kalman timeout -- is the FPGA running?\n");
             break;

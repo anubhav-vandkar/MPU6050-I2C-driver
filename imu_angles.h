@@ -4,11 +4,10 @@
 #include <stdint.h>
 #include "mpu6050.h"
 
-#define Q39_FRAC_BITS   9
-#define Q39_SCALE       (1 << Q39_FRAC_BITS)   /* 512 */
-#define Q39_MASK        0x0FFF                  /* 12-bit mask */
+#define Q39_FRAC_BITS 9
+#define Q39_SCALE (1 << Q39_FRAC_BITS)
+#define Q39_MASK 0x0FFF 
 
-/* decode: sign-extend 12-bit field then divide */
 static inline float q39_to_float(int16_t val)
 {
     int16_t sign_extended = (int16_t)(val << 4) >> 4;
