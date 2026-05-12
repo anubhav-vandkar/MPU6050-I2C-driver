@@ -76,13 +76,12 @@ int mpu6050_init(void)
     return 0;
 }
 
-int mpu6050_read_frame(imu_raw_frame_t *frame, uint16_t *sample_count)
+int mpu6050_read_frame(imu_raw_frame_t *frame)
 {
     uint8_t buf[14];
     uint8_t int_status;
 
     frame->timestamp_us = get_timestamp_us();
-    frame->sample_count = (*sample_count)++;
 
     // Poll the data-ready bit before reading 
     if (i2c_read_regs(MPU6050_ADDR, REG_INT_STATUS, &int_status, 1) < 0)

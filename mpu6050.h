@@ -51,7 +51,7 @@ typedef struct {
 
 int mpu6050_init(void);
 
-int mpu6050_read_frame(imu_raw_frame_t *frame, uint16_t *sample_count);
+int mpu6050_read_frame(imu_raw_frame_t *frame);
 
 void mpu6050_close(void);
 

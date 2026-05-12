@@ -26,7 +26,6 @@ int main(void)
     imu_angle_frame_t angles;
     kalman_result_t kalman_result;
     imu_bias_t bias;
-    uint16_t sample_count = 0;
     int ret;
 
     struct timespec sleep_time = { 0, 1000000 };
@@ -69,7 +68,7 @@ int main(void)
     printf("Starting. Ctrl+C to stop.\n\n");
 
     while (running) {
-        ret = mpu6050_read_frame(&raw, &sample_count);
+        ret = mpu6050_read_frame(&raw);
 
         if (ret < 0) {
             fprintf(stderr, "I2C read error\n");
