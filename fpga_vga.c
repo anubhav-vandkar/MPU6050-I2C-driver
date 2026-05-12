@@ -14,7 +14,7 @@ static void *vga_base = NULL;
 
 static float slope_filtered = 0.0f;
 static float pitch_filtered = 0.0f;
-const float alpha = 0.01f;
+const float alpha = 0.05f;
 
 static inline void vga_reg_write(uint32_t offset, uint32_t value)
 {
