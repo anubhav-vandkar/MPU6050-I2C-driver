@@ -24,12 +24,12 @@ enum {
     // Buffer 1: 0x1E00..0x3BFF
     // Control : 0x3C00
     VGA_BUF0_WORD = 0x0000,
-    VGA_BUF1_WORD = 0x1E00,
-    VGA_CTRL_WORD = 0x3C00,
+    VGA_BUF1_WORD = 0x2000,
+    VGA_CTRL_WORD = 0x4000,
 };
 
 #define VGA_PHYS_BASE    0xff200000u
-#define VGA_MAP_LEN      0x4000u
+#define VGA_MAP_LEN      0x10004u
 
 static const float PIXELS_PER_DEGREE   = 4.0f;
 static const float LINE_THICKNESS_PX   = 5.0f;
@@ -65,13 +65,21 @@ typedef struct {
     float y;
 } point_t;
 
+static inline float raw_radians_to_float(uint16_t raw) {
+    int16_t signed_raw = (int16_t)raw;
+    return (float)signed_raw;
+}
+
+static inline float raw_radians_to_degrees(uint16_t raw) {
+    float radians = raw_radians_to_float(raw);
+    return radians * 180.0f / (float)M_PI;
+}
+
 static inline uint32_t pack_segment_word(int xs, int xe, uint8_t color) {
     xs = clamp_int(xs, 0, 0x0FFF);
     xe = clamp_int(xe, 0, 0x0FFF);
 
-    if(xe <= xs) {
-        return 0;
-    }
+    if(xe <= xs) return 0;
 
     return ((uint32_t)(color & 0xFFu) << 24) |
            ((uint32_t)(xe    & 0x0FFFu) << 12) |
@@ -79,18 +87,11 @@ static inline uint32_t pack_segment_word(int xs, int xe, uint8_t color) {
 }
 
 static inline void append_segment(uint32_t row_words[WORDS_PER_ROW],
-                                  int *seg_count,
-                                  int xs,
-                                  int xe,
-                                  uint8_t color) {
-    if(*seg_count >= WORDS_PER_ROW) {
-        return;
-    }
+                                  int *seg_count, int xs, int xe, uint8_t color) {
+    if(*seg_count >= WORDS_PER_ROW) return;
 
     uint32_t packed = pack_segment_word(xs, xe, color);
-    if(packed == 0) {
-        return;
-    }
+    if(packed == 0) return;
 
     row_words[*seg_count] = packed;
     (*seg_count)++;
@@ -197,15 +198,8 @@ static const uint8_t *glyph_rows(char ch) {
 }
 
 static void draw_text_row(uint32_t row_words[WORDS_PER_ROW],
-                          int *seg_count,
-                          int row,
-                          int start_x,
-                          int start_y,
-                          const char *text,
-                          uint8_t color) {
-    if(row < start_y || row >= (start_y + FONT_H)) {
-        return;
-    }
+                          int *seg_count, int row, int start_x, int start_y, const char *text, uint8_t color) {
+    if(row < start_y || row >= (start_y + FONT_H)) return;
 
     const int glyph_row = row - start_y;
     int x = start_x;
@@ -228,15 +222,11 @@ static void draw_text_row(uint32_t row_words[WORDS_PER_ROW],
             int run_end = col - 1;
 
             append_segment(row_words, seg_count, x + run_start, x + run_end, color);
-            if(*seg_count >= WORDS_PER_ROW) {
-                return;
-            }
+            if(*seg_count >= WORDS_PER_ROW) return;
         }
 
         x += FONT_ADV;
-        if(x >= VGA_WIDTH) {
-            return;
-        }
+        if(x >= VGA_WIDTH) return;
     }
 }
 
@@ -247,9 +237,7 @@ static int gather_scanline_intersections(float scan_y, const point_t p[4], float
         point_t a = p[i];
         point_t b = p[(i + 1) & 3];
 
-        if(fabsf(a.y - b.y) < 1e-6f) {
-            continue;
-        }
+        if(fabsf(a.y - b.y) < 1e-6f) continue;
 
         float ymin = fminf(a.y, b.y);
         float ymax = fmaxf(a.y, b.y);
@@ -291,24 +279,15 @@ static int gather_scanline_intersections(float scan_y, const point_t p[4], float
 }
 
 static void add_thick_segment_row(uint32_t row_words[WORDS_PER_ROW],
-                                  int *seg_count,
-                                  int row,
-                                  float x0, float y0,
-                                  float x1, float y1,
-                                  float thickness_px,
-                                  uint8_t color) {
-    if(*seg_count >= WORDS_PER_ROW) {
-        return;
-    }
+                                  int *seg_count, int row, float x0, float y0, float x1, float y1, float thickness_px, uint8_t color) {
+    if(*seg_count >= WORDS_PER_ROW) return;
 
     float half_t = thickness_px * 0.5f;
     float scan_y = (float)row;
 
     // Horizontal segment special-case
     if(fabsf(y1 - y0) < 1e-6f) {
-        if(fabsf(scan_y - y0) > half_t) {
-            return;
-        }
+        if(fabsf(scan_y - y0) > half_t) return;
 
         int xs = (int)ceilf(fminf(x0, x1));
         int xe = (int)floorf(fmaxf(x0, x1));
@@ -319,9 +298,7 @@ static void add_thick_segment_row(uint32_t row_words[WORDS_PER_ROW],
     float dx = x1 - x0;
     float dy = y1 - y0;
     float len = sqrtf(dx * dx + dy * dy);
-    if(len < 1e-6f) {
-        return;
-    }
+    if(len < 1e-6f) return;
 
     float nx = -dy / len;
     float ny =  dx / len;
@@ -334,9 +311,7 @@ static void add_thick_segment_row(uint32_t row_words[WORDS_PER_ROW],
 
     float xs[4];
     int n = gather_scanline_intersections(scan_y, poly, xs);
-    if(n < 2) {
-        return;
-    }
+    if(n < 2) return;
 
     float xmin = xs[0];
     float xmax = xs[0];
@@ -351,12 +326,7 @@ static void add_thick_segment_row(uint32_t row_words[WORDS_PER_ROW],
 }
 
 static void add_horizon_row(uint32_t row_words[WORDS_PER_ROW],
-                            int *seg_count,
-                            int y,
-                            float cx,
-                            float cy,
-                            float s,
-                            float c) {
+                            int *seg_count, int y, float cx, float cy, float s, float c) {
     const float half_thickness = LINE_THICKNESS_PX * 0.5f;
     const float fy = (float)y;
 
@@ -419,13 +389,7 @@ static void add_horizon_row(uint32_t row_words[WORDS_PER_ROW],
 }
 
 static void add_pitch_ladder_rows(uint32_t row_words[WORDS_PER_ROW],
-                                  int *seg_count,
-                                  int y,
-                                  float cx,
-                                  float cy0,
-                                  float pitch_deg,
-                                  float s,
-                                  float c) {
+                                  int *seg_count, int y, float cx, float cy0, float pitch_deg, float s, float c) {
     // Major ladder marks, symmetrical around the horizon.
     static const float ladder_offsets_deg[] = {
         -60.0f, -50.0f, -40.0f, -30.0f, -20.0f, -10.0f,
@@ -433,9 +397,7 @@ static void add_pitch_ladder_rows(uint32_t row_words[WORDS_PER_ROW],
     };
 
     for(int i = 0; i < (int)(sizeof(ladder_offsets_deg) / sizeof(ladder_offsets_deg[0])); ++i) {
-        if(*seg_count >= WORDS_PER_ROW) {
-            return;
-        }
+        if(*seg_count >= WORDS_PER_ROW) return;
 
         float ladder_pitch = pitch_deg + ladder_offsets_deg[i];
         float line_cy = cy0 + (PITCH_SIGN * ladder_pitch * PIXELS_PER_DEGREE);
@@ -454,8 +416,7 @@ static void add_pitch_ladder_rows(uint32_t row_words[WORDS_PER_ROW],
     }
 }
 
-void ahrs_display_build_frame(float roll_deg,
-                              float pitch_deg,
+void ahrs_display_build_frame(float roll_deg, float pitch_deg,
                               uint32_t frame[VGA_HEIGHT][WORDS_PER_ROW]) {
     const float cx = (VGA_WIDTH - 1) * 0.5f;
     const float cy0 = (VGA_HEIGHT - 1) * 0.5f;
@@ -532,9 +493,7 @@ static void write_table_to_vga(volatile uint32_t *vga_words,
 }
 
 void ahrs_display_init(void) {
-    if(g_vga_words != NULL) {
-        return;
-    }
+    if(g_vga_words != NULL) return;
 
     int fd = open("/dev/mem", O_RDWR | O_SYNC);
     if(fd < 0) {
@@ -546,10 +505,13 @@ void ahrs_display_init(void) {
     close(fd);
 }
 
-void ahrs_display_render(float roll_deg, float pitch_deg) {
+void ahrs_display_render(uint16_t roll_raw, uint16_t pitch_raw) {
     if(g_vga_words == NULL) {
         ahrs_display_init();
     }
+
+    float roll_deg  = raw_radians_to_degrees(roll_raw);
+    float pitch_deg = raw_radians_to_degrees(pitch_raw);
 
     static uint32_t frame[VGA_HEIGHT][WORDS_PER_ROW];
 

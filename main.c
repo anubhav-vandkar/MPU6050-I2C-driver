@@ -10,7 +10,8 @@
 #include "imu_calibrate.h"
 #include "imu_angles.h"
 #include "fpga_avalon.h"
-#include "vga/fpga_vga.h"
+//#include "vga/fpga_vga.h"
+#include "vga/vga_new.c"
 
 static volatile int running = 1;
 
@@ -55,14 +56,17 @@ int main(void)
     }
 
     // VGA init
-    if (fpga_vga_open() < 0) {
-        fprintf(stderr, "VGA open failed.\n");
-        fpga_avalon_close();
-        mpu6050_close();
-        return 1;
-    }
+    // if (fpga_vga_open() < 0) {
+    //     fprintf(stderr, "VGA open failed.\n");
+    //     fpga_avalon_close();
+    //     mpu6050_close();
+    //     return 1;
+    // }
 
-    fpga_vga_set_background(0x00, 0x00, 0x80);
+    // VGA init new 
+    ahrs_display_init();
+
+    //fpga_vga_set_background(0x00, 0x00, 0x80);
 
     printf("Starting. Ctrl+C to stop.\n\n");
 
@@ -97,7 +101,9 @@ int main(void)
         //test with raw roll
         //kalman_result.kalman_roll = angles.roll;
 
-        fpga_vga_update(&kalman_result);
+        //fpga_vga_update(&kalman_result);
+        
+
 
         //imu_angles_print(&angles);
         print_kalman_result(&kalman_result, &angles);
