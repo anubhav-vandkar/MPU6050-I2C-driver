@@ -103,7 +103,7 @@ int main(void)
 
         //fpga_vga_update(&kalman_result);
 
-        ahrs_display_render(kalman_result.kalman_roll, kalman_result.kalman_pitch);
+        ahrs_display_render((uint16_t)kalman_result.kalman_roll, (uint16_t)kalman_result.kalman_pitch);
 
         //imu_angles_print(&angles);
         print_kalman_result(&kalman_result, &angles);
