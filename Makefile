@@ -9,7 +9,7 @@ SRCS   = main.c \
          imu_calibrate.c \
          imu_angles.c \
          fpga_avalon.c \
-         vga/vga_new.c \
+         vga_new.c 
 
 OBJS = $(SRCS:.c=.o)
 

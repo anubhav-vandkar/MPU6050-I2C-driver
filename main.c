@@ -11,7 +11,7 @@
 #include "imu_angles.h"
 #include "fpga_avalon.h"
 //#include "vga/fpga_vga.h"
-#include "vga/vga_new.c"
+#include "vga/vga_new.h"
 
 static volatile int running = 1;
 
@@ -102,8 +102,8 @@ int main(void)
         //kalman_result.kalman_roll = angles.roll;
 
         //fpga_vga_update(&kalman_result);
-        
 
+        ahrs_display_render(kalman_result.kalman_roll, kalman_result.kalman_pitch);
 
         //imu_angles_print(&angles);
         print_kalman_result(&kalman_result, &angles);
@@ -111,7 +111,7 @@ int main(void)
         nanosleep(&sleep_time, NULL);
     }
 
-    fpga_vga_close();
+    //fpga_vga_close();
     fpga_avalon_close();
     mpu6050_close();
     return 0;

@@ -65,13 +65,13 @@ typedef struct {
     float y;
 } point_t;
 
-static inline float raw_radians_to_float(uint16_t raw) {
-    int16_t signed_raw = (int16_t)raw;
-    return (float)signed_raw;
+static inline float q3_9_to_float(uint16_t raw) {
+    int16_t signed_raw = (raw & 0x0800u) ? (int16_t)(raw | 0xF000u) : (int16_t)(raw & 0x0FFFu);
+    return (float)signed_raw / 512.0f;
 }
 
-static inline float raw_radians_to_degrees(uint16_t raw) {
-    float radians = raw_radians_to_float(raw);
+static inline float q3_9_to_degrees(uint16_t raw) {
+    float radians = q3_9_to_float(raw);
     return radians * 180.0f / (float)M_PI;
 }
 
@@ -510,8 +510,8 @@ void ahrs_display_render(uint16_t roll_raw, uint16_t pitch_raw) {
         ahrs_display_init();
     }
 
-    float roll_deg  = raw_radians_to_degrees(roll_raw);
-    float pitch_deg = raw_radians_to_degrees(pitch_raw);
+    float roll_deg  = q3_9_to_degrees(roll_raw);
+    float pitch_deg = q3_9_to_degrees(pitch_raw);
 
     static uint32_t frame[VGA_HEIGHT][WORDS_PER_ROW];
 
