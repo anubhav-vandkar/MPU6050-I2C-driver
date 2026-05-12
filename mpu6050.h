@@ -35,8 +35,8 @@
  *   0x10 -> ±1000 deg/s    32.8 LSB/deg/s
  *   0x18 -> ±2000 deg/s    16.4 LSB/deg/s
  */
-#define ACCEL_FSR_2G 0x00
-#define GYRO_FSR_250DPS   0x00
+#define ACCEL_FSR 0x00
+#define GYRO_FSR 0x00
 
 /* Sensitivity divisors matching the FSR settings above */
 #define ACCEL_SENSITIVITY  16384.0f   /* LSB/g   at ±2g  */

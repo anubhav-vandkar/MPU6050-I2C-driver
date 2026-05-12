@@ -53,18 +53,13 @@ int mpu6050_init(void)
     if (i2c_write_reg(MPU6050_ADDR, REG_CONFIG, 0x01) < 0)
         return -1;
 
-    /* Gyro FSR = ±250 deg/s  (131 LSB/deg/s) */
-    if (i2c_write_reg(MPU6050_ADDR, REG_GYRO_CONFIG, GYRO_FSR_250DPS) < 0)
+    //FSR
+    if (i2c_write_reg(MPU6050_ADDR, REG_GYRO_CONFIG, GYRO_FSR) < 0)
         return -1;
 
-    /* Accel FSR = ±2g  (16384 LSB/g) */
-    if (i2c_write_reg(MPU6050_ADDR, REG_ACCEL_CONFIG, ACCEL_FSR_2G) < 0)
+    if (i2c_write_reg(MPU6050_ADDR, REG_ACCEL_CONFIG, ACCEL_FSR) < 0)
         return -1;
 
-    /*
-     * Interrupt pin: active high, push-pull, cleared on any read,
-     * I2C bypass enabled (harmless if not using aux I2C).
-     */
     if (i2c_write_reg(MPU6050_ADDR, REG_INT_PIN_CFG, 0x22) < 0)
         return -1;
 
