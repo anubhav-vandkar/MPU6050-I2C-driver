@@ -26,8 +26,7 @@ int mpu6050_init(void)
         return -1;
     }
     if (who_am_i != 0x68) {
-        fprintf(stderr, "mpu6050_init: unexpected WHO_AM_I 0x%02X (want 0x68)\n",
-                who_am_i);
+        fprintf(stderr, "mpu6050_init: unexpected WHO_AM_I 0x%02X (want 0x68)\n", who_am_i);
         return -1;
     }
     printf("MPU-6050 found (WHO_AM_I=0x%02X)\n", who_am_i);
