@@ -13,7 +13,6 @@
 int mpu6050_calibrate(imu_bias_t *bias)
 {
     imu_raw_frame_t frame;
-    uint16_t sample_count = 0;
 
     /* 32-bit accumulators so we don't overflow during summation */
     int32_t sum_ax = 0, sum_ay = 0, sum_az = 0;
@@ -26,7 +25,7 @@ int mpu6050_calibrate(imu_bias_t *bias)
     printf("Calibrating -- keep sensor still and flat...\n");
 
     while (collected < CALIB_NUM_SAMPLES) {
-        int ret = mpu6050_read_frame(&frame, &sample_count);
+        int ret = mpu6050_read_frame(&frame);
 
         if (ret < 0) {
             errors++;

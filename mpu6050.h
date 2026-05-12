@@ -44,7 +44,6 @@
 
 typedef struct {
     uint32_t timestamp_us;
-    uint16_t sample_count;
     int16_t ax, ay, az;
     int16_t gx, gy, gz;
 } imu_raw_frame_t;
