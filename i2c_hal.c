@@ -1,12 +1,5 @@
 #define _GNU_SOURCE
 
-/*
- * i2c_hal.c
- *
- * Linux userspace I2C wrappers using ioctl.
- * Nothing sensor-specific lives here -- just the bus mechanics.
- */
-
 #include "i2c_hal.h"
 
 #include <stdio.h>
@@ -16,7 +9,6 @@
 #include <linux/i2c.h>
 #include <linux/i2c-dev.h>
 
-/* file descriptor for the open I2C bus -- private to this file */
 static int i2c_fd = -1;
 
 int i2c_hal_open(const char *dev_path)
@@ -67,10 +59,10 @@ int i2c_read_regs(uint8_t addr, uint8_t reg, uint8_t *buf, int len)
      * msg[0]: write phase -- sets the internal register pointer.
      * No STOP is generated after this message.
      */
-    msgs[0].addr  = addr;
-    msgs[0].flags = 0;          /* write */
-    msgs[0].len   = 1;
-    msgs[0].buf   = &reg;
+    msgs[0].addr = addr;
+    msgs[0].flags = 0;
+    msgs[0].len = 1;
+    msgs[0].buf = &reg;
 
     /*
      * msg[1]: read phase -- REPEATED START is issued before this.

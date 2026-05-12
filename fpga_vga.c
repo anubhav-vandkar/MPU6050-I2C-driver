@@ -58,12 +58,12 @@ void fpga_vga_set_background(uint8_t r, uint8_t g, uint8_t b)
 void fpga_vga_update(kalman_result_t *kalman_result)
 {
     int16_t pitch_q39 = (kalman_result->kalman_pitch & 0x0FFF);
-    int16_t roll_q39  = (kalman_result->kalman_roll & 0x0FFF);
+    int16_t roll_q39 = (kalman_result->kalman_roll & 0x0FFF);
 
-    float roll_rad  = (float)roll_q39 / 512.0f;
-    float slope_f   = tanf(roll_rad) * 512.0f;
+    float roll_rad = (float)roll_q39 / 512.0f;
+    float slope_f = tanf(roll_rad) * 512.0f;
 
-    if (slope_f >  32767.0f) slope_f =  32767.0f;
+    if (slope_f > 32767.0f) slope_f = 32767.0f;
     if (slope_f < -32768.0f) slope_f = -32768.0f;
 
     slope_filtered = alpha * slope_f + (1.0f - alpha) * slope_filtered;

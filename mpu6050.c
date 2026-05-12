@@ -34,7 +34,7 @@ int mpu6050_init(void)
 
     if (i2c_write_reg(MPU6050_ADDR, REG_PWR_MGMT_1, 0x01) < 0)
         return -1;
-    usleep(10000); /* 10 ms -- let the PLL lock */
+    usleep(10000);
 
     /*
      * Sample rate divider.
