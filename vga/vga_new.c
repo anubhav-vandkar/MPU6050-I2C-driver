@@ -18,7 +18,7 @@ enum {
     VGA_HEIGHT    = 480,
     WORDS_PER_ROW = 16,
 
-    /* Word addresses in the VGA peripheral (32-bit registers)  */
+    /* Word addresses in the VGA peripheral (32-bit registers) */
     VGA_BUF0_WORD = 0x0000,
     VGA_BUF1_WORD = 0x2000,
     VGA_CTRL_WORD = 0x4000,
@@ -36,19 +36,19 @@ static const float ROLL_SIGN            = -1.0f;
 static const float PITCH_SIGN           =  1.0f;
 static const int   INFO_BAR_HEIGHT      = 24;
 
-/* Fixed boresight dot at the screen centre */
+// central dot:
 #define CENTER_X 319
 #define CENTER_Y 239
-#define DOT_HALF   3   /* half-size in pixels → 7 × 7 yellow block */
+#define DOT_HALF   3
 
 enum {
-    COLOR_SKY    = 0x5B,   /* blue             */
-    COLOR_GRASS  = 0x10,   /* green            */
-    COLOR_HORIZON= 0xFF,   /* white            */
-    COLOR_LADDER = 0x92,   /* gray             */
-    COLOR_TEXT   = 0xFF,   /* white            */
-    COLOR_YELLOW = 0xFC,   /* yellow           */
-    COLOR_BLACK  = 0x00    /* black            */
+    COLOR_SKY    = 0x5B,   /* blue     */
+    COLOR_GRASS  = 0x10,   /* green    */
+    COLOR_HORIZON= 0xFF,   /* white    */
+    COLOR_LADDER = 0x92,   /* gray     */
+    COLOR_TEXT   = 0xFF,   /* white    */
+    COLOR_YELLOW = 0xFC,   /* yellow   */
+    COLOR_BLACK  = 0x00    /* black    */
 };
 
 #define FONT_W 5
@@ -58,9 +58,9 @@ enum {
 static volatile uint32_t *g_vga_words = NULL;
 static int g_display_buffer = 0;
 
-/* ------------------------------------------------------------------ */
-/* Utilities                                                           */
-/* ------------------------------------------------------------------ */
+/* --------------------------------------------------*/
+/*  Utilities                                        */
+/* --------------------------------------------------*/
 
 static inline int clamp_int(int v, int lo, int hi) {
     if(v < lo) return lo;
@@ -154,9 +154,9 @@ static const uint8_t *glyph_rows(char ch) {
     }
 }
 
-/* ------------------------------------------------------------------ */
-/* Text rendering                                                      */
-/* ------------------------------------------------------------------ */
+/* --------------------------------------------------*/
+/*  Text rendering                                   */
+/* --------------------------------------------------*/
 
 /* Normal weight: one segment per contiguous run of lit pixels. */
 static void draw_text_row(uint32_t row_words[WORDS_PER_ROW],
@@ -214,12 +214,11 @@ static void draw_text_row_bold(uint32_t row_words[WORDS_PER_ROW],
     }
 }
 
-/* ------------------------------------------------------------------ */
-/* Scanline polygon helpers                                            */
-/* ------------------------------------------------------------------ */
+/* -----------------------------------------------------*/
+/*  Scanline polygon helpers                            */
+/* -----------------------------------------------------*/
 
-static int gather_scanline_intersections(float scan_y, const point_t p[4],
-                                         float xs_out[4]) {
+static int gather_scanline_intersections(float scan_y, const point_t p[4], float xs_out[4]) {
     int n = 0;
     for(int i = 0; i < 4; ++i) {
         point_t a = p[i];
@@ -238,7 +237,7 @@ static int gather_scanline_intersections(float scan_y, const point_t p[4],
         }
     }
     if(n < 2) return 0;
-    /* bubble sort the two (usually) intersections */
+    /* sort the intersections */
     for(int i = 0; i < n - 1; ++i)
         for(int j = i + 1; j < n; ++j)
             if(xs_out[j] < xs_out[i]) {
@@ -285,8 +284,7 @@ static void add_thick_segment_row(uint32_t row_words[WORDS_PER_ROW],
         if(xs[i] < xmin) xmin = xs[i];
         if(xs[i] > xmax) xmax = xs[i];
     }
-    append_segment(row_words, seg_count,
-                   (int)ceilf(xmin), (int)floorf(xmax), color);
+    append_segment(row_words, seg_count, (int)ceilf(xmin), (int)floorf(xmax), color);
 }
 
 /* ------------------------------------------------------------------ */
@@ -294,8 +292,7 @@ static void add_thick_segment_row(uint32_t row_words[WORDS_PER_ROW],
 /* ------------------------------------------------------------------ */
 
 static void add_horizon_row(uint32_t row_words[WORDS_PER_ROW],
-                            int *seg_count, int y,
-                            float cx, float cy, float s, float c) {
+                            int *seg_count, int y, float cx, float cy, float s, float c) {
     const float half_thickness = LINE_THICKNESS_PX * 0.5f;
     const float fy = (float)y;
 
@@ -339,9 +336,9 @@ static void add_horizon_row(uint32_t row_words[WORDS_PER_ROW],
     if(xe < VGA_WIDTH - 1) append_segment(row_words, seg_count, xe + 1,  VGA_WIDTH - 1, after);
 }
 
-/* ------------------------------------------------------------------ */
-/* Pitch ladder                                                        */
-/* ------------------------------------------------------------------ */
+/* --------------------------------------------------*/
+/*  Pitch ladder                                     */
+/* --------------------------------------------------*/
 
 /*
  * Ladder mark table.  12 marks: six above and six below the horizon.
@@ -362,7 +359,7 @@ static const float ladder_offsets_deg[] = {
 #define LADDER_COUNT \
     ((int)(sizeof(ladder_offsets_deg) / sizeof(ladder_offsets_deg[0])))
 
-/* Long for multiples of 20, short otherwise (matches label magnitude). */
+/* Long for multiples of 20, short otherwise */
 static const float ladder_half_lens[] = {
     /* -60  -50   -40   -30   -20   -10  */
     90.0f, 45.0f, 90.0f, 45.0f, 90.0f, 45.0f,
@@ -370,16 +367,14 @@ static const float ladder_half_lens[] = {
     45.0f, 90.0f, 45.0f, 90.0f, 45.0f, 90.0f
 };
 
-/* Inertial pitch each mark represents (label = −offset). */
+/* Inertial pitch each mark represents (label = −offset) */
 static const char * const ladder_labels[] = {
     "+60", "+50", "+40", "+30", "+20", "+10",
     "-10", "-20", "-30", "-40", "-50", "-60"
 };
 
 static void add_pitch_ladder_rows(uint32_t row_words[WORDS_PER_ROW],
-                                  int *seg_count, int y,
-                                  float cx, float cy0,
-                                  float pitch_deg, float s, float c) {
+                                  int *seg_count, int y, float cx, float cy0, float pitch_deg, float s, float c) {
     for(int i = 0; i < LADDER_COUNT; ++i) {
         if(*seg_count >= WORDS_PER_ROW) return;
 
@@ -387,13 +382,13 @@ static void add_pitch_ladder_rows(uint32_t row_words[WORDS_PER_ROW],
         float line_cy      = cy0 + (PITCH_SIGN * ladder_pitch * PIXELS_PER_DEGREE);
         float half_len     = ladder_half_lens[i];
 
-        /* Rotated endpoints of the ladder bar. */
+        /* Rotated endpoints of the ladder bar */
         float dx = half_len * c;
         float dy = half_len * s;
         float x0 = cx - dx,  y0 = line_cy - dy;
         float x1 = cx + dx,  y1 = line_cy + dy;
 
-        /* Draw the ladder bar itself. */
+        /* Draw the ladder bar itself */
         add_thick_segment_row(row_words, seg_count, y,
                               x0, y0, x1, y1,
                               LADDER_THICKNESS_PX, COLOR_LADDER);
@@ -408,10 +403,10 @@ static void add_pitch_ladder_rows(uint32_t row_words[WORDS_PER_ROW],
             const char *lbl = ladder_labels[i];
             int nchars      = (int)strlen(lbl);
 
-            /* Right label: gap of 5px past the far endpoint. */
+            /* Right label: gap of 5px past the far endpoint */
             int right_x = (int)(cx + half_len + 5.0f);
 
-            /* Left label: right-align it 5px before the near endpoint. */
+            /* Left label: right-align it 5px before the near endpoint */
             int left_x  = (int)(cx - half_len - 5.0f) - nchars * FONT_ADV;
 
             draw_text_row(row_words, seg_count, y,
@@ -422,9 +417,9 @@ static void add_pitch_ladder_rows(uint32_t row_words[WORDS_PER_ROW],
     }
 }
 
-/* ------------------------------------------------------------------ */
-/* Frame builder                                                       */
-/* ------------------------------------------------------------------ */
+/* --------------------------------------------------- */
+/*  Frame builder                                      */
+/* --------------------------------------------------- */
 
 void ahrs_display_build_frame(float roll_deg, float pitch_deg,
                               uint32_t frame[VGA_HEIGHT][WORDS_PER_ROW]) {
@@ -438,7 +433,7 @@ void ahrs_display_build_frame(float roll_deg, float pitch_deg,
     const float cy = cy0 + (PITCH_SIGN * pitch_deg * PIXELS_PER_DEGREE);
 
     /*
-     * Top-bar text strings.
+     * Top-bar text strings
      *
      * Layout (INFO_BAR_HEIGHT = 24 px, FONT_H = 7 px):
      *   Rows  3-9 : bold label  "ROLL"  (left)  |  "PITCH"  (right)
@@ -448,14 +443,14 @@ void ahrs_display_build_frame(float roll_deg, float pitch_deg,
     snprintf(roll_val,  sizeof(roll_val),  "%+.1f", roll_deg);
     snprintf(pitch_val, sizeof(pitch_val), "%+.1f", pitch_deg);
 
-    /* Right-edge x for right-aligned text (8 px margin from right edge). */
+    /* Right-edge x for right-aligned text (8 px margin from right edge) */
     const int right_margin = 8;
-    int pitch_label_x = VGA_WIDTH - right_margin - (int)(5 * FONT_ADV);       /* "PITCH" */
+    int pitch_label_x = VGA_WIDTH - right_margin - (int)(5 * FONT_ADV);
     int pitch_val_x   = VGA_WIDTH - right_margin
                         - (int)(strlen(pitch_val) * FONT_ADV);
 
     for(int y = 0; y < VGA_HEIGHT; ++y) {
-        /* Clear row. */
+        /* Clear row */
         for(int i = 0; i < WORDS_PER_ROW; ++i) frame[y][i] = 0;
         int seg_count = 0;
 
@@ -466,15 +461,15 @@ void ahrs_display_build_frame(float roll_deg, float pitch_deg,
              * Append text first so it overwrites the black background.
              */
 
-            /* ROLL label and value on the left, bold white. */
+            /* ROLL label and value on the left, bold white */
             draw_text_row_bold(frame[y], &seg_count, y,  8,             3,  "ROLL",    COLOR_TEXT);
             draw_text_row_bold(frame[y], &seg_count, y,  8,             13, roll_val,  COLOR_TEXT);
 
-            /* PITCH label and value on the right, bold white. */
+            /* PITCH label and value on the right, bold white */
             draw_text_row_bold(frame[y], &seg_count, y,  pitch_label_x, 3,  "PITCH",   COLOR_TEXT);
             draw_text_row_bold(frame[y], &seg_count, y,  pitch_val_x,   13, pitch_val, COLOR_TEXT);
 
-            /* Full-width black background — lowest priority fills the rest. */
+            /* Full-width black background — lowest priority fills the rest */
             append_segment(frame[y], &seg_count, 0, VGA_WIDTH - 1, COLOR_BLACK);
             continue;
         }
@@ -533,8 +528,7 @@ static void request_buffer_swap(volatile uint32_t *vga_words, int next_buffer) {
     g_display_buffer = next_buffer & 0x1;
 }
 
-static void write_table_to_vga(volatile uint32_t *vga_words,
-                               uint32_t base_word,
+static void write_table_to_vga(volatile uint32_t *vga_words, uint32_t base_word,
                                const uint32_t frame[VGA_HEIGHT][WORDS_PER_ROW]) {
     for(int y = 0; y < VGA_HEIGHT; ++y)
         for(int seg = 0; seg < WORDS_PER_ROW; ++seg)
