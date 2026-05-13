@@ -7,7 +7,7 @@
 #include <unistd.h>
 
 #define VGA_PHYS_BASE 0xff200000u
-#define VGA_MAP_LEN   0x10000u
+#define VGA_MAP_LEN   0x20000u   // 128 KB safe
 
 #define VGA_BUF0_WORD 0x0000
 #define VGA_CTRL_WORD 0x4000
@@ -16,24 +16,35 @@
 #define VGA_HEIGHT 480
 #define WORDS_PER_ROW 16
 
-static volatile uint32_t *vga;
+// RGB332 red = 11100000
+#define RED 0xE0
 
-static inline uint32_t pack(int xs, int xe, uint8_t color) {
+// Convert WORD address -> byte offset
+#define WADDR(w) ((w) * 4)
+
+// Safe register access
+#define REG32(base8, w) (*(volatile uint32_t *)((base8) + WADDR(w)))
+
+static uint32_t pack_segment(int xs, int xe, uint8_t color)
+{
     return ((uint32_t)color << 24) |
            ((uint32_t)(xe & 0x0FFF) << 12) |
            ((uint32_t)(xs & 0x0FFF));
 }
 
-int main() {
+int main(void)
+{
     int fd = open("/dev/mem", O_RDWR | O_SYNC);
     if (fd < 0) {
-        perror("open");
+        perror("open(/dev/mem)");
         return 1;
     }
 
-    void *base = mmap(NULL, VGA_MAP_LEN,
+    void *base = mmap(NULL,
+                      VGA_MAP_LEN,
                       PROT_READ | PROT_WRITE,
-                      MAP_SHARED, fd,
+                      MAP_SHARED,
+                      fd,
                       VGA_PHYS_BASE);
 
     if (base == MAP_FAILED) {
@@ -41,27 +52,36 @@ int main() {
         return 1;
     }
 
-    vga = (volatile uint32_t *)base;
+    close(fd);
 
-    uint32_t red = pack(0, VGA_WIDTH - 1, 0xE0);
+    volatile uint8_t *base8 = (volatile uint8_t *)base;
 
-    printf("Writing red frame...\n");
+    printf("Mapped base = %p\n", base);
+
+    uint32_t red_word = pack_segment(0, VGA_WIDTH - 1, RED);
+
+    printf("Writing full red frame...\n");
 
     for (int y = 0; y < VGA_HEIGHT; y++) {
-        for (int s = 0; s < WORDS_PER_ROW; s++) {
+        for (int seg = 0; seg < WORDS_PER_ROW; seg++) {
 
-            uint32_t addr =
+            uint32_t word_addr =
                 VGA_BUF0_WORD +
                 y * WORDS_PER_ROW +
-                s;
+                seg;
 
-            vga[addr] = red;
+            REG32(base8, word_addr) = red_word;
         }
     }
 
-    vga[VGA_CTRL_WORD] = 0;
+    printf("Requesting buffer 0 display...\n");
+    REG32(base8, VGA_CTRL_WORD) = 0;
 
-    printf("Done.\n");
+    printf("Done. If VGA is working, screen should be solid red.\n");
 
-    while (1) sleep(1);
+    while (1) {
+        sleep(1);
+    }
+
+    return 0;
 }
