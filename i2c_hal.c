@@ -55,19 +55,13 @@ int i2c_read_regs(uint8_t addr, uint8_t reg, uint8_t *buf, int len)
     struct i2c_msg msgs[2];
     struct i2c_rdwr_ioctl_data data;
 
-    /*
-     * msg[0]: write phase -- sets the internal register pointer.
-     * No STOP is generated after this message.
-     */
+    //write phase
     msgs[0].addr = addr;
     msgs[0].flags = 0;
     msgs[0].len = 1;
     msgs[0].buf = &reg;
 
-    /*
-     * msg[1]: read phase -- REPEATED START is issued before this.
-     * The sensor auto-increments its pointer, giving us a burst read.
-     */
+    //read phase
     msgs[1].addr  = addr;
     msgs[1].flags = I2C_M_RD;
     msgs[1].len   = len;
