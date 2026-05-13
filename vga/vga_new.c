@@ -42,8 +42,8 @@ static const int   INFO_BAR_HEIGHT      = 24;
 #define DOT_HALF   3   /* half-size in pixels → 7 × 7 yellow block */
 
 enum {
-    COLOR_SKY    = 0x03,   /* blue   (RGB332) */
-    COLOR_GRASS  = 0x1C,   /* green            */
+    COLOR_SKY    = 0x9B,   /* blue   (RGB332) */
+    COLOR_GRASS  = 0x10,   /* green            */
     COLOR_HORIZON= 0xFF,   /* white            */
     COLOR_LADDER = 0x92,   /* gray             */
     COLOR_TEXT   = 0xFF,   /* white            */
