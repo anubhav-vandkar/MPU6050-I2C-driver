@@ -3,65 +3,73 @@
 #include <fcntl.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <sys/mman.h>
 #include <unistd.h>
 
-#define BASE 0xff200000u
-#define LEN  0x100000u   // scan 1MB of lightweight bridge space
+#define FPGA_BASE   0xff200000u
+#define MAP_SIZE    0x00040000u   // 256 KB LW window
 
-static volatile uint8_t *base8;
+static volatile uint32_t *fpga = NULL;
 
-static inline void w32(uint32_t off, uint32_t val)
-{
-    *(volatile uint32_t *)(base8 + off) = val;
-}
-
-static inline uint32_t r32(uint32_t off)
-{
-    return *(volatile uint32_t *)(base8 + off);
-}
-
-int main()
+static void map_fpga(void)
 {
     int fd = open("/dev/mem", O_RDWR | O_SYNC);
     if (fd < 0) {
-        perror("open");
-        return 1;
+        perror("open(/dev/mem)");
+        exit(1);
     }
 
-    void *base = mmap(NULL, LEN,
-                      PROT_READ | PROT_WRITE,
-                      MAP_SHARED,
-                      fd,
-                      BASE);
+    fpga = (volatile uint32_t *)mmap(
+        NULL,
+        MAP_SIZE,
+        PROT_READ | PROT_WRITE,
+        MAP_SHARED,
+        fd,
+        FPGA_BASE
+    );
 
-    if (base == MAP_FAILED) {
-        perror("mmap");
-        return 1;
-    }
-
-    base8 = (volatile uint8_t *)base;
     close(fd);
 
-    printf("Scanning for responsive FPGA regions...\n");
-
-    for (uint32_t off = 0; off < 0x10000; off += 4) {
-
-        uint32_t before = r32(off);
-
-        w32(off, 0xA5A5A5A5);
-        uint32_t after = r32(off);
-
-        if (after != before) {
-            printf("HIT at offset 0x%08x : %08x -> %08x\n",
-                   off, before, after);
-        }
-
-        // restore
-        w32(off, before);
+    if (fpga == MAP_FAILED) {
+        perror("mmap");
+        exit(1);
     }
 
-    printf("Done.\n");
+    printf("Mapped FPGA LW bridge at 0x%08x\n", FPGA_BASE);
+}
 
-    while (1) sleep(1);
+int main(void)
+{
+    map_fpga();
+
+    printf("\nScanning FPGA LW bridge...\n\n");
+
+    int hits = 0;
+
+    for (int i = 0; i < 0x10000; i += 4) {
+        volatile uint32_t *addr = fpga + (i / 4);
+        uint32_t v1 = *addr;
+        uint32_t v2 = *addr;
+
+        // Look for non-zero or unstable registers
+        if (v1 != 0 || v2 != 0) {
+            printf("Offset 0x%04x : 0x%08x  (readback)\n", i, v1);
+            hits++;
+        }
+
+        // Also detect “real hardware” behavior (sometimes mirrored registers)
+        if (v1 != v2) {
+            printf("⚠ unstable read at 0x%04x\n", i);
+        }
+    }
+
+    if (hits == 0) {
+        printf("\nNo FPGA responses detected in LW bridge region\n");
+        printf("   -> Linux is NOT seeing your FPGA peripherals\n");
+    } else {
+        printf("\nFPGA region is alive. Hits: %d\n", hits);
+    }
+
+    return 0;
 }
