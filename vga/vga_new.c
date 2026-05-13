@@ -66,7 +66,7 @@ typedef struct {
 static inline float q3_9_to_float(uint16_t raw) {
     raw &= 0x0FFFu;
 
-    if(raw > 1000u && raw < 3000u) {
+    if(raw > 850u && raw < 3300u) {
         raw = 0u;
     }
 
