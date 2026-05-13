@@ -42,7 +42,7 @@ static const int   INFO_BAR_HEIGHT      = 24;
 #define DOT_HALF   3   /* half-size in pixels → 7 × 7 yellow block */
 
 enum {
-    COLOR_SKY    = 0x7B,   /* blue             */
+    COLOR_SKY    = 0x5B,   /* blue             */
     COLOR_GRASS  = 0x10,   /* green            */
     COLOR_HORIZON= 0xFF,   /* white            */
     COLOR_LADDER = 0x92,   /* gray             */
@@ -72,7 +72,7 @@ typedef struct { float x; float y; } point_t;
 
 static inline float q3_9_to_float_roll(uint16_t raw) {
     raw &= 0x0FFFu;
-    if(raw > 850u && raw < 3300u) raw = 0u;
+    if(raw > 750u && raw < 3400u) raw = 0u;
     int16_t signed_raw = (raw & 0x0800u) ? (int16_t)(raw | 0xF000u) : (int16_t)raw;
     return (float)signed_raw / 512.0f;
 }
