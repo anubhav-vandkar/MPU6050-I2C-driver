@@ -72,7 +72,7 @@ typedef struct { float x; float y; } point_t;
 
 static inline float q3_9_to_float_roll(uint16_t raw) {
     raw &= 0x0FFFu;
-    if(raw > 750u && raw < 3400u) raw = 0u;
+    if(raw > 700u && raw < 3400u) raw = 0u;
     int16_t signed_raw = (raw & 0x0800u) ? (int16_t)(raw | 0xF000u) : (int16_t)raw;
     return (float)signed_raw / 512.0f;
 }
