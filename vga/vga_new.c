@@ -442,11 +442,11 @@ void ahrs_display_build_frame(float roll_deg, float pitch_deg,
             continue;
         }
 
+        // Base horizon/background first.
+        add_horizon_row(frame[y], &seg_count, y, cx, cy, s, c);
+
         // Pitch ladder lines on top of the horizon/background.
         add_pitch_ladder_rows(frame[y], &seg_count, y, cx, cy0, pitch_deg, s, c);
-
-        // Base horizon/background.
-        add_horizon_row(frame[y], &seg_count, y, cx, cy, s, c);
     }
 }
 
