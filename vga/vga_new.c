@@ -446,8 +446,7 @@ void ahrs_display_build_frame(float roll_deg, float pitch_deg,
     /* Right-edge x for right-aligned text (8 px margin from right edge) */
     const int right_margin = 8;
     int pitch_label_x = VGA_WIDTH - right_margin - (int)(5 * FONT_ADV);
-    int pitch_val_x   = VGA_WIDTH - right_margin
-                        - (int)(strlen(pitch_val) * FONT_ADV);
+    int pitch_val_x   = VGA_WIDTH - right_margin - (int)(strlen(pitch_val) * FONT_ADV);
 
     for(int y = 0; y < VGA_HEIGHT; ++y) {
         /* Clear row */
@@ -483,8 +482,7 @@ void ahrs_display_build_frame(float roll_deg, float pitch_deg,
          */
         if(y >= CENTER_Y - DOT_HALF && y <= CENTER_Y + DOT_HALF) {
             append_segment(frame[y], &seg_count,
-                           CENTER_X - DOT_HALF, CENTER_X + DOT_HALF,
-                           COLOR_YELLOW);
+                           CENTER_X - DOT_HALF, CENTER_X + DOT_HALF, COLOR_YELLOW);
         }
 
         /*
@@ -503,9 +501,9 @@ void ahrs_display_build_frame(float roll_deg, float pitch_deg,
     }
 }
 
-/* ------------------------------------------------------------------ */
-/* Hardware interface                                                  */
-/* ------------------------------------------------------------------ */
+/* ---------------------------------------------------------- */
+/*  Hardware interface                                        */
+/* ---------------------------------------------------------- */
 
 static void *map_peripheral(int fd, off_t phys_base, size_t length) {
     long page_size = sysconf(_SC_PAGESIZE);
