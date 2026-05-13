@@ -443,28 +443,20 @@ void ahrs_display_build_frame(float roll_deg, float pitch_deg,
         int seg_count = 0;
 
         if(y < INFO_BAR_HEIGHT) {
-            // Explicit black background for info bar
-            append_segment(frame[y], &seg_count,
-                        0, VGA_WIDTH - 1, 0x00);
-
-            draw_text_row(frame[y], &seg_count,
-                        y, 8, 3,
-                        pitch_text, COLOR_TEXT);
-
-            draw_text_row(frame[y], &seg_count,
-                        y, 8, 13,
-                        roll_text, COLOR_TEXT);
-
+            // Leave the row cleared to zero so the bar stays black by default.
+            // Then draw the text segments on top of that empty row.
+            draw_text_row(frame[y], &seg_count, y, 8,  3, pitch_text, COLOR_TEXT);
+            draw_text_row(frame[y], &seg_count, y, 8, 13, roll_text,  COLOR_TEXT);
             continue;
         }
 
-        // Pitch ladder lines on top of the horizon/background.
-        add_pitch_ladder_rows(frame[y], &seg_count, y, cx, cy0, pitch_deg, s, c);
+                // Pitch ladder lines on top of the horizon/background.
+                add_pitch_ladder_rows(frame[y], &seg_count, y, cx, cy0, pitch_deg, s, c);
 
-        // Base horizon/background.
-        add_horizon_row(frame[y], &seg_count, y, cx, cy, s, c);
-    }
-}
+                // Base horizon/background.
+                add_horizon_row(frame[y], &seg_count, y, cx, cy, s, c);
+            }
+        }
 
 static void *map_peripheral(int fd, off_t phys_base, size_t length) {
     long page_size = sysconf(_SC_PAGESIZE);
