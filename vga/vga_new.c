@@ -324,9 +324,8 @@ static void add_horizon_row(uint32_t row_words[WORDS_PER_ROW],
     int xs = clamp_int((int)ceilf(x1),  0, VGA_WIDTH - 1);
     int xe = clamp_int((int)floorf(x2), 0, VGA_WIDTH - 1);
     if(xe <= xs) {
-        append_segment(row_words, seg_count, 0, VGA_WIDTH - 1, (fy < cy) ? COLOR_SKY : COLOR_GRASS);
-        return;
-    }
+        append_segment(row_words, seg_count, 0, VGA_WIDTH - 1,
+                       (s > 0.0f) ? COLOR_GRASS : COLOR_SKY);
         return;
     }
 
