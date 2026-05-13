@@ -24,16 +24,16 @@
 
 /*
  * Accel bits [4:3] in ACCEL_CONFIG:
- *   0x00 -> ±2g    16384 LSB/g
- *   0x08 -> ±4g     8192 LSB/g
- *   0x10 -> ±8g     4096 LSB/g
- *   0x18 -> ±16g    2048 LSB/g
+ *   0x00 = ±2g    16384 LSB/g
+ *   0x08 = ±4g     8192 LSB/g
+ *   0x10 = ±8g     4096 LSB/g
+ *   0x18 = ±16g    2048 LSB/g
  *
  * Gyro bits [4:3] in GYRO_CONFIG:
- *   0x00 -> ±250  deg/s   131.0 LSB/deg/s
- *   0x08 -> ±500  deg/s    65.5 LSB/deg/s
- *   0x10 -> ±1000 deg/s    32.8 LSB/deg/s
- *   0x18 -> ±2000 deg/s    16.4 LSB/deg/s
+ *   0x00 = ±250  deg/s   131.0 LSB/deg/s
+ *   0x08 = ±500  deg/s    65.5 LSB/deg/s
+ *   0x10 = ±1000 deg/s    32.8 LSB/deg/s
+ *   0x18 = ±2000 deg/s    16.4 LSB/deg/s
  */
 #define ACCEL_FSR 0x00
 #define GYRO_FSR 0x00

@@ -139,6 +139,6 @@ void print_kalman_result(const kalman_result_t *res, const imu_angle_frame_t *an
             (int32_t)angles->gx,
             (int32_t)angles->gy,
             (uint16_t)res->kalman_roll,
-            ( uint16_t)res->kalman_pitch
+            (uint16_t)res->kalman_pitch
     );
 }
