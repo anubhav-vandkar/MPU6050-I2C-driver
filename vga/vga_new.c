@@ -6,7 +6,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/mman.h>
-#include <time.h>
 #include <unistd.h>
 
 #ifndef M_PI
@@ -16,53 +15,42 @@
 enum {
     VGA_WIDTH  = 640,
     VGA_HEIGHT = 480,
-
-    // 16 packed 32-bit segment words per row.
     WORDS_PER_ROW = 16,
 
-    // Word offsets in the VGA peripheral (uint32_t indexing).
-    // Buffer 0: 0x0000..0x1FFF
-    // Buffer 1: 0x2000..0x3FFF
-    // Control : 0x4000
+    // Word addresses in the VGA peripheral (32-bit registers)
+    // Buffer 0: 0x0000..0x1DFF
+    // Buffer 1: 0x1E00..0x3BFF
+    // Control : 0x3C00
     VGA_BUF0_WORD = 0x0000,
     VGA_BUF1_WORD = 0x2000,
     VGA_CTRL_WORD = 0x4000,
-
-    // Kalman Avalon register map from kalman_avalon.sv
-    KALMAN_ROLL_WORD  = 0x0006,
-    KALMAN_PITCH_WORD = 0x0007,
-
-    // Byte length needed to reach control at 0x10000 bytes.
-    VGA_MAP_LEN = 0x11000
 };
 
-#define KALMAN_PHYS_BASE 0xff200040u
 #define VGA_PHYS_BASE    0xff200000u
+#define VGA_MAP_LEN      0x10004u
 
 static const float PIXELS_PER_DEGREE   = 4.0f;
-static const float LINE_THICKNESS_PX    = 5.0f;
-static const float LADDER_THICKNESS_PX  = 3.0f;
-static const float LADDER_HALF_LEN_PX   = 90.0f;
-static const float ROLL_SIGN            = -1.0f;
-static const float PITCH_SIGN           =  1.0f;
-
-static const int INFO_BAR_HEIGHT = 32;
-
-enum {
-    // RGB332 colors expected by the VGA module.
-    COLOR_SKY     = 0x03, // blue
-    COLOR_GRASS   = 0x1C, // green
-    COLOR_HORIZON = 0xFF, // white
-    COLOR_LADDER  = 0x92, // gray
-    COLOR_TEXT    = 0xFF  // white
-};
+static const float LINE_THICKNESS_PX   = 5.0f;
+static const float LADDER_THICKNESS_PX = 3.0f;
+static const float LADDER_HALF_LEN_PX  = 90.0f;
+static const float ROLL_SIGN           = -1.0f;
+static const float PITCH_SIGN          =  1.0f;
+static const int INFO_BAR_HEIGHT = 24;
 
 enum {
-    FONT_W = 5,
-    FONT_H = 7,
-    FONT_SCALE = 2,
-    FONT_ADV = 6 * 2
+    COLOR_SKY     = 0x03,  // blue
+    COLOR_GRASS   = 0x1C,  // green
+    COLOR_HORIZON = 0xFF,  // white
+    COLOR_LADDER  = 0x92,  // gray
+    COLOR_TEXT    = 0xFF   // white
 };
+
+#define FONT_W 5
+#define FONT_H 7
+#define FONT_ADV 6
+
+static volatile uint32_t *g_vga_words = NULL;
+static int g_display_buffer = 0;
 
 static inline int clamp_int(int v, int lo, int hi) {
     if(v < lo) return lo;
@@ -70,33 +58,27 @@ static inline int clamp_int(int v, int lo, int hi) {
     return v;
 }
 
-// Sign-extend a 12-bit two's-complement value into int16_t.
-static inline int16_t sign_extend_12(uint16_t v) {
-    v &= 0x0FFF;
-    if(v & 0x0800) {
-        v |= 0xF000;
-    }
-    return (int16_t)v;
-}
-
-// Lower 12 bits are signed Q3.9, so divide by 2^9 = 512.
-static inline float q3_9_to_float_deg(uint32_t word) {
-    int16_t raw = sign_extend_12((uint16_t)word);
-    return (float)raw / 512.0f;
-}
-
 typedef struct {
     float x;
     float y;
 } point_t;
 
+static inline float q3_9_to_float(uint16_t raw) {
+    raw &= 0x0FFFu;
+    int16_t signed_raw = (raw & 0x0800u) ? (int16_t)(raw | 0xF000u) : (int16_t)raw;
+    return (float)signed_raw / 512.0f;
+}
+
+static inline float q3_9_to_degrees(uint16_t raw) {
+    float radians = q3_9_to_float(raw);
+    return radians * 180.0f / (float)M_PI;
+}
+
 static inline uint32_t pack_segment_word(int xs, int xe, uint8_t color) {
     xs = clamp_int(xs, 0, 0x0FFF);
     xe = clamp_int(xe, 0, 0x0FFF);
 
-    if(xe <= xs) {
-        return 0;
-    }
+    if(xe <= xs) return 0;
 
     return ((uint32_t)(color & 0xFFu) << 24) |
            ((uint32_t)(xe    & 0x0FFFu) << 12) |
@@ -104,18 +86,11 @@ static inline uint32_t pack_segment_word(int xs, int xe, uint8_t color) {
 }
 
 static inline void append_segment(uint32_t row_words[WORDS_PER_ROW],
-                                  int *seg_count,
-                                  int xs,
-                                  int xe,
-                                  uint8_t color) {
-    if(*seg_count >= WORDS_PER_ROW) {
-        return;
-    }
+                                  int *seg_count, int xs, int xe, uint8_t color) {
+    if(*seg_count >= WORDS_PER_ROW) return;
 
     uint32_t packed = pack_segment_word(xs, xe, color);
-    if(packed == 0) {
-        return;
-    }
+    if(packed == 0) return;
 
     row_words[*seg_count] = packed;
     (*seg_count)++;
@@ -161,7 +136,6 @@ static const uint8_t *glyph_rows(char ch) {
     static const uint8_t COLON[FONT_H] = {
         0x00, 0x04, 0x04, 0x00, 0x04, 0x04, 0x00
     };
-
     static const uint8_t D0[FONT_H] = {
         0x0E, 0x11, 0x13, 0x15, 0x19, 0x11, 0x0E
     };
@@ -221,26 +195,11 @@ static const uint8_t *glyph_rows(char ch) {
     }
 }
 
-static int text_width_px(const char *text) {
-    int n = 0;
-    for(const char *p = text; *p != '\0'; ++p) {
-        ++n;
-    }
-    return n * FONT_ADV;
-}
-
 static void draw_text_row(uint32_t row_words[WORDS_PER_ROW],
-                          int *seg_count,
-                          int row,
-                          int start_x,
-                          int start_y,
-                          const char *text,
-                          uint8_t color) {
-    if(row < start_y || row >= (start_y + FONT_H * FONT_SCALE)) {
-        return;
-    }
+                          int *seg_count, int row, int start_x, int start_y, const char *text, uint8_t color) {
+    if(row < start_y || row >= (start_y + FONT_H)) return;
 
-    const int glyph_row = (row - start_y) / FONT_SCALE;
+    const int glyph_row = row - start_y;
     int x = start_x;
 
     for(const char *p = text; *p != '\0'; ++p) {
@@ -260,18 +219,12 @@ static void draw_text_row(uint32_t row_words[WORDS_PER_ROW],
             }
             int run_end = col - 1;
 
-            int xs = x + run_start * FONT_SCALE;
-            int xe = x + (run_end + 1) * FONT_SCALE - 1;
-            append_segment(row_words, seg_count, xs, xe, color);
-            if(*seg_count >= WORDS_PER_ROW) {
-                return;
-            }
+            append_segment(row_words, seg_count, x + run_start, x + run_end, color);
+            if(*seg_count >= WORDS_PER_ROW) return;
         }
 
         x += FONT_ADV;
-        if(x >= VGA_WIDTH) {
-            return;
-        }
+        if(x >= VGA_WIDTH) return;
     }
 }
 
@@ -282,9 +235,7 @@ static int gather_scanline_intersections(float scan_y, const point_t p[4], float
         point_t a = p[i];
         point_t b = p[(i + 1) & 3];
 
-        if(fabsf(a.y - b.y) < 1e-6f) {
-            continue;
-        }
+        if(fabsf(a.y - b.y) < 1e-6f) continue;
 
         float ymin = fminf(a.y, b.y);
         float ymax = fmaxf(a.y, b.y);
@@ -308,9 +259,7 @@ static int gather_scanline_intersections(float scan_y, const point_t p[4], float
         }
     }
 
-    if(n < 2) {
-        return 0;
-    }
+    if(n < 2) return 0;
 
     for(int i = 0; i < n - 1; ++i) {
         for(int j = i + 1; j < n; ++j) {
@@ -326,24 +275,15 @@ static int gather_scanline_intersections(float scan_y, const point_t p[4], float
 }
 
 static void add_thick_segment_row(uint32_t row_words[WORDS_PER_ROW],
-                                  int *seg_count,
-                                  int row,
-                                  float x0, float y0,
-                                  float x1, float y1,
-                                  float thickness_px,
-                                  uint8_t color) {
-    if(*seg_count >= WORDS_PER_ROW) {
-        return;
-    }
+                                  int *seg_count, int row, float x0, float y0, float x1, float y1, float thickness_px, uint8_t color) {
+    if(*seg_count >= WORDS_PER_ROW) return;
 
     float half_t = thickness_px * 0.5f;
     float scan_y = (float)row;
 
-    // Horizontal segment special-case.
+    // Horizontal segment special-case
     if(fabsf(y1 - y0) < 1e-6f) {
-        if(fabsf(scan_y - y0) > half_t) {
-            return;
-        }
+        if(fabsf(scan_y - y0) > half_t) return;
 
         int xs = (int)ceilf(fminf(x0, x1));
         int xe = (int)floorf(fmaxf(x0, x1));
@@ -354,9 +294,7 @@ static void add_thick_segment_row(uint32_t row_words[WORDS_PER_ROW],
     float dx = x1 - x0;
     float dy = y1 - y0;
     float len = sqrtf(dx * dx + dy * dy);
-    if(len < 1e-6f) {
-        return;
-    }
+    if(len < 1e-6f) return;
 
     float nx = -dy / len;
     float ny =  dx / len;
@@ -369,9 +307,7 @@ static void add_thick_segment_row(uint32_t row_words[WORDS_PER_ROW],
 
     float xs[4];
     int n = gather_scanline_intersections(scan_y, poly, xs);
-    if(n < 2) {
-        return;
-    }
+    if(n < 2) return;
 
     float xmin = xs[0];
     float xmax = xs[0];
@@ -386,12 +322,7 @@ static void add_thick_segment_row(uint32_t row_words[WORDS_PER_ROW],
 }
 
 static void add_horizon_row(uint32_t row_words[WORDS_PER_ROW],
-                            int *seg_count,
-                            int y,
-                            float cx,
-                            float cy,
-                            float s,
-                            float c) {
+                            int *seg_count, int y, float cx, float cy, float s, float c) {
     const float half_thickness = LINE_THICKNESS_PX * 0.5f;
     const float fy = (float)y;
 
@@ -415,12 +346,16 @@ static void add_horizon_row(uint32_t row_words[WORDS_PER_ROW],
         x2 = tmp;
     }
 
-    // If the horizon band is completely off-screen, just color the whole row
-    // according to the side of the horizon it lies on.
-    if(x2 < 0.0f || x1 > (float)(VGA_WIDTH - 1)) {
-        float horizon_y_at_center = cy;
-        uint8_t side_color = (fy < horizon_y_at_center) ? COLOR_SKY : COLOR_GRASS;
-        append_segment(row_words, seg_count, 0, VGA_WIDTH - 1, side_color);
+    // If the entire horizon band is off-screen, color the row based on which
+    // side of the horizon this scanline lies on.
+    if(x2 < 0.0f) {
+        append_segment(row_words, seg_count, 0, VGA_WIDTH - 1,
+                       (s > 0.0f) ? COLOR_GRASS : COLOR_SKY);
+        return;
+    }
+    if(x1 > (float)(VGA_WIDTH - 1)) {
+        append_segment(row_words, seg_count, 0, VGA_WIDTH - 1,
+                       (s > 0.0f) ? COLOR_SKY : COLOR_GRASS);
         return;
     }
 
@@ -431,13 +366,14 @@ static void add_horizon_row(uint32_t row_words[WORDS_PER_ROW],
     xe = clamp_int(xe, 0, VGA_WIDTH - 1);
 
     if(xe <= xs) {
-        uint8_t side_color = (fy < cy) ? COLOR_SKY : COLOR_GRASS;
-        append_segment(row_words, seg_count, 0, VGA_WIDTH - 1, side_color);
+        // Degenerate row, fall back to a full-row side color.
+        append_segment(row_words, seg_count, 0, VGA_WIDTH - 1,
+                       (s > 0.0f) ? COLOR_SKY : COLOR_GRASS);
         return;
     }
 
-    uint8_t before_color = (fy < cy) ? COLOR_SKY   : COLOR_GRASS;
-    uint8_t after_color  = (fy < cy) ? COLOR_GRASS : COLOR_SKY;
+    uint8_t before_color = (s > 0.0f) ? COLOR_SKY   : COLOR_GRASS;
+    uint8_t after_color  = (s > 0.0f) ? COLOR_GRASS : COLOR_SKY;
 
     if(xs > 0) {
         append_segment(row_words, seg_count, 0, xs - 1, before_color);
@@ -449,13 +385,7 @@ static void add_horizon_row(uint32_t row_words[WORDS_PER_ROW],
 }
 
 static void add_pitch_ladder_rows(uint32_t row_words[WORDS_PER_ROW],
-                                  int *seg_count,
-                                  int y,
-                                  float cx,
-                                  float cy0,
-                                  float pitch_deg,
-                                  float s,
-                                  float c) {
+                                  int *seg_count, int y, float cx, float cy0, float pitch_deg, float s, float c) {
     // Major ladder marks, symmetrical around the horizon.
     static const float ladder_offsets_deg[] = {
         -60.0f, -50.0f, -40.0f, -30.0f, -20.0f, -10.0f,
@@ -463,9 +393,7 @@ static void add_pitch_ladder_rows(uint32_t row_words[WORDS_PER_ROW],
     };
 
     for(int i = 0; i < (int)(sizeof(ladder_offsets_deg) / sizeof(ladder_offsets_deg[0])); ++i) {
-        if(*seg_count >= WORDS_PER_ROW) {
-            return;
-        }
+        if(*seg_count >= WORDS_PER_ROW) return;
 
         float ladder_pitch = pitch_deg + ladder_offsets_deg[i];
         float line_cy = cy0 + (PITCH_SIGN * ladder_pitch * PIXELS_PER_DEGREE);
@@ -480,13 +408,11 @@ static void add_pitch_ladder_rows(uint32_t row_words[WORDS_PER_ROW],
         float x1 = cx + dx;
         float y1 = line_cy + dy;
 
-        add_thick_segment_row(row_words, seg_count, y, x0, y0, x1, y1,
-                              LADDER_THICKNESS_PX, COLOR_LADDER);
+        add_thick_segment_row(row_words, seg_count, y, x0, y0, x1, y1, LADDER_THICKNESS_PX, COLOR_LADDER);
     }
 }
 
-static void build_frame_table(float roll_deg,
-                              float pitch_deg,
+void ahrs_display_build_frame(float roll_deg, float pitch_deg,
                               uint32_t frame[VGA_HEIGHT][WORDS_PER_ROW]) {
     const float cx = (VGA_WIDTH - 1) * 0.5f;
     const float cy0 = (VGA_HEIGHT - 1) * 0.5f;
@@ -502,11 +428,6 @@ static void build_frame_table(float roll_deg,
     snprintf(pitch_text, sizeof(pitch_text), "PITCH %+.1f", pitch_deg);
     snprintf(roll_text, sizeof(roll_text),  "ROLL  %+.1f", roll_deg);
 
-    int pitch_x = 8;
-    int pitch_y = 4;
-    int roll_x  = VGA_WIDTH - 8 - text_width_px(roll_text);
-    int roll_y  = 18;
-
     for(int y = 0; y < VGA_HEIGHT; ++y) {
         for(int i = 0; i < WORDS_PER_ROW; ++i) {
             frame[y][i] = 0;
@@ -515,14 +436,16 @@ static void build_frame_table(float roll_deg,
         int seg_count = 0;
 
         if(y < INFO_BAR_HEIGHT) {
-            // Black info bar, with larger text.
-            draw_text_row(frame[y], &seg_count, y, pitch_x, pitch_y, pitch_text, COLOR_TEXT);
-            draw_text_row(frame[y], &seg_count, y, roll_x,  roll_y,  roll_text,  COLOR_TEXT);
+            // Two-line black info bar. Empty space is black by default.
+            draw_text_row(frame[y], &seg_count, y, 8,  3, pitch_text, COLOR_TEXT);
+            draw_text_row(frame[y], &seg_count, y, 8, 13, roll_text,  COLOR_TEXT);
             continue;
         }
 
-        // Draw ladder first so it has priority over the horizon/background.
+        // Pitch ladder lines on top of the horizon/background.
         add_pitch_ladder_rows(frame[y], &seg_count, y, cx, cy0, pitch_deg, s, c);
+
+        // Base horizon/background.
         add_horizon_row(frame[y], &seg_count, y, cx, cy, s, c);
     }
 }
@@ -547,8 +470,14 @@ static void *map_peripheral(int fd, off_t phys_base, size_t length) {
     return (uint8_t *)map + page_off;
 }
 
+static int read_current_display_buffer(volatile uint32_t *vga_words) {
+    (void)vga_words;
+    return g_display_buffer;
+}
+
 static void request_buffer_swap(volatile uint32_t *vga_words, int next_buffer) {
     vga_words[VGA_CTRL_WORD] = (uint32_t)(next_buffer & 0x1);
+    g_display_buffer = next_buffer & 0x1;
 }
 
 static void write_table_to_vga(volatile uint32_t *vga_words,
@@ -561,48 +490,41 @@ static void write_table_to_vga(volatile uint32_t *vga_words,
     }
 }
 
-int main(void) {
+void ahrs_display_init(void) {
+    if(g_vga_words != NULL) return;
+
     int fd = open("/dev/mem", O_RDWR | O_SYNC);
     if(fd < 0) {
         perror("open(/dev/mem)");
-        return 1;
+        exit(1);
     }
 
-    volatile uint32_t *kalman_words = (volatile uint32_t *)map_peripheral(fd, (off_t)KALMAN_PHYS_BASE, 0x1000);
-    volatile uint32_t *vga_words    = (volatile uint32_t *)map_peripheral(fd, (off_t)VGA_PHYS_BASE, VGA_MAP_LEN);
+    g_vga_words = (volatile uint32_t *)map_peripheral(fd, (off_t)VGA_PHYS_BASE, VGA_MAP_LEN);
+    close(fd);
+
+    g_display_buffer = 0;
+}
+
+void ahrs_display_render(uint16_t roll_raw, uint16_t pitch_raw) {
+    if(g_vga_words == NULL) {
+        ahrs_display_init();
+    }
+
+    float roll_deg  = q3_9_to_degrees(roll_raw);
+    float pitch_deg = q3_9_to_degrees(pitch_raw);
 
     static uint32_t frame[VGA_HEIGHT][WORDS_PER_ROW];
 
-    // The VGA control register is write-only in hardware, so keep our own
-    // software view of which buffer to update next.
-    int next_buffer = 1;
+    int current_buffer = read_current_display_buffer(g_vga_words);
+    int target_buffer   = current_buffer ^ 1;
 
-    struct timespec next_tick;
-    clock_gettime(CLOCK_MONOTONIC, &next_tick);
+    ahrs_display_build_frame(roll_deg, pitch_deg, frame);
 
-    while(1) {
-        float roll_deg  = q3_9_to_float_deg(kalman_words[KALMAN_ROLL_WORD]);
-        float pitch_deg = q3_9_to_float_deg(kalman_words[KALMAN_PITCH_WORD]);
-
-        build_frame_table(roll_deg, pitch_deg, frame);
-
-        if(next_buffer == 0) {
-            write_table_to_vga(vga_words, VGA_BUF0_WORD, frame);
-        } else {
-            write_table_to_vga(vga_words, VGA_BUF1_WORD, frame);
-        }
-
-        request_buffer_swap(vga_words, next_buffer);
-        next_buffer ^= 1;
-
-        next_tick.tv_nsec += 16666667L; // 60 Hz
-        while(next_tick.tv_nsec >= 1000000000L) {
-            next_tick.tv_nsec -= 1000000000L;
-            next_tick.tv_sec += 1;
-        }
-        clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &next_tick, NULL);
+    if(target_buffer == 0) {
+        write_table_to_vga(g_vga_words, VGA_BUF0_WORD, frame);
+    } else {
+        write_table_to_vga(g_vga_words, VGA_BUF1_WORD, frame);
     }
 
-    close(fd);
-    return 0;
+    request_buffer_swap(g_vga_words, target_buffer);
 }
