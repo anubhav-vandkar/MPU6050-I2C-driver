@@ -351,16 +351,16 @@ static void add_horizon_row(uint32_t row_words[WORDS_PER_ROW],
         x2 = tmp;
     }
 
-    // If the entire horizon band is off-screen, color the row based on which
-    // side of the horizon this scanline lies on.
+    // Fixed sky/ground orientation
     if(x2 < 0.0f) {
         append_segment(row_words, seg_count, 0, VGA_WIDTH - 1,
-                       (s > 0.0f) ? COLOR_GRASS : COLOR_SKY);
+                       (s > 0.0f) ? COLOR_SKY : COLOR_GRASS);
         return;
     }
+
     if(x1 > (float)(VGA_WIDTH - 1)) {
         append_segment(row_words, seg_count, 0, VGA_WIDTH - 1,
-                       (s > 0.0f) ? COLOR_SKY : COLOR_GRASS);
+                       (s > 0.0f) ? COLOR_GRASS : COLOR_SKY);
         return;
     }
 
@@ -371,19 +371,21 @@ static void add_horizon_row(uint32_t row_words[WORDS_PER_ROW],
     xe = clamp_int(xe, 0, VGA_WIDTH - 1);
 
     if(xe <= xs) {
-        // Degenerate row, fall back to a full-row side color.
         append_segment(row_words, seg_count, 0, VGA_WIDTH - 1,
-                       (s > 0.0f) ? COLOR_SKY : COLOR_GRASS);
+                       (s > 0.0f) ? COLOR_GRASS : COLOR_SKY);
         return;
     }
 
-    uint8_t before_color = (s > 0.0f) ? COLOR_SKY   : COLOR_GRASS;
-    uint8_t after_color  = (s > 0.0f) ? COLOR_GRASS : COLOR_SKY;
+    // Fixed side coloring
+    uint8_t before_color = (s > 0.0f) ? COLOR_GRASS : COLOR_SKY;
+    uint8_t after_color  = (s > 0.0f) ? COLOR_SKY   : COLOR_GRASS;
 
     if(xs > 0) {
         append_segment(row_words, seg_count, 0, xs - 1, before_color);
     }
+
     append_segment(row_words, seg_count, xs, xe, COLOR_HORIZON);
+
     if(xe < VGA_WIDTH - 1) {
         append_segment(row_words, seg_count, xe + 1, VGA_WIDTH - 1, after_color);
     }
