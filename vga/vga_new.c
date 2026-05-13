@@ -443,9 +443,18 @@ void ahrs_display_build_frame(float roll_deg, float pitch_deg,
         int seg_count = 0;
 
         if(y < INFO_BAR_HEIGHT) {
-            // Two-line black info bar. Empty space is black by default.
-            draw_text_row(frame[y], &seg_count, y, 8,  3, pitch_text, COLOR_TEXT);
-            draw_text_row(frame[y], &seg_count, y, 8, 13, roll_text,  COLOR_TEXT);
+            // Explicit black background for info bar
+            append_segment(frame[y], &seg_count,
+                        0, VGA_WIDTH - 1, 0x00);
+
+            draw_text_row(frame[y], &seg_count,
+                        y, 8, 3,
+                        pitch_text, COLOR_TEXT);
+
+            draw_text_row(frame[y], &seg_count,
+                        y, 8, 13,
+                        roll_text, COLOR_TEXT);
+
             continue;
         }
 
