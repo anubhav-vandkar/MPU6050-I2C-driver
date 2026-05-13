@@ -63,19 +63,14 @@ typedef struct {
     float y;
 } point_t;
 
-// Values near the 12-bit wraparound are noisy around the zero crossing.
-// Clamp a small deadband around 0 so the display doesn't flicker when the
-// sensor passes through the transition region.
-static const int Q3_9_ZERO_DEADBAND = 50;
-
 static inline float q3_9_to_float(uint16_t raw) {
     raw &= 0x0FFFu;
-    int16_t signed_raw = (raw & 0x0800u) ? (int16_t)(raw | 0xF000u) : (int16_t)raw;
 
-    if(signed_raw > -Q3_9_ZERO_DEADBAND && signed_raw < Q3_9_ZERO_DEADBAND) {
-        return 0.0f;
+    if(raw > 1000u && raw < 3000u) {
+        raw = 0u;
     }
 
+    int16_t signed_raw = (raw & 0x0800u) ? (int16_t)(raw | 0xF000u) : (int16_t)raw;
     return (float)signed_raw / 512.0f;
 }
 
@@ -452,11 +447,11 @@ void ahrs_display_build_frame(float roll_deg, float pitch_deg,
             continue;
         }
 
-        // Base horizon/background.
-        add_horizon_row(frame[y], &seg_count, y, cx, cy, s, c);
-
         // Pitch ladder lines on top of the horizon/background.
         add_pitch_ladder_rows(frame[y], &seg_count, y, cx, cy0, pitch_deg, s, c);
+
+        // Base horizon/background.
+        add_horizon_row(frame[y], &seg_count, y, cx, cy, s, c);
     }
 }
 
