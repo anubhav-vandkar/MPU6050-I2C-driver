@@ -42,12 +42,12 @@ static const int   INFO_BAR_HEIGHT      = 24;
 #define DOT_HALF   3   /* half-size in pixels → 7 × 7 yellow block */
 
 enum {
-    COLOR_SKY    = 0x9B,   /* blue   (RGB332) */
+    COLOR_SKY    = 0x7B,   /* blue             */
     COLOR_GRASS  = 0x10,   /* green            */
     COLOR_HORIZON= 0xFF,   /* white            */
     COLOR_LADDER = 0x92,   /* gray             */
     COLOR_TEXT   = 0xFF,   /* white            */
-    COLOR_YELLOW = 0xFC,   /* yellow R7 G7 B0  */
+    COLOR_YELLOW = 0xFC,   /* yellow           */
     COLOR_BLACK  = 0x00    /* black            */
 };
 
@@ -70,15 +70,26 @@ static inline int clamp_int(int v, int lo, int hi) {
 
 typedef struct { float x; float y; } point_t;
 
-static inline float q3_9_to_float(uint16_t raw) {
+static inline float q3_9_to_float_roll(uint16_t raw) {
     raw &= 0x0FFFu;
     if(raw > 850u && raw < 3300u) raw = 0u;
     int16_t signed_raw = (raw & 0x0800u) ? (int16_t)(raw | 0xF000u) : (int16_t)raw;
     return (float)signed_raw / 512.0f;
 }
 
-static inline float q3_9_to_degrees(uint16_t raw) {
-    return q3_9_to_float(raw) * 180.0f / (float)M_PI;
+static inline float q3_9_to_float_pitch(uint16_t raw) {
+    raw &= 0x0FFFu;
+    if(raw > 600u && raw < 3400u) raw = 0u;
+    int16_t signed_raw = (raw & 0x0800u) ? (int16_t)(raw | 0xF000u) : (int16_t)raw;
+    return (float)signed_raw / 512.0f;
+}
+
+static inline float q3_9_to_degrees_roll(uint16_t raw) {
+    return q3_9_to_float_roll(raw) * 180.0f / (float)M_PI;
+}
+
+static inline float q3_9_to_degrees_pitch(uint16_t raw) {
+    return q3_9_to_float_pitch(raw) * 180.0f / (float)M_PI;
 }
 
 static inline uint32_t pack_segment_word(int xs, int xe, uint8_t color) {
@@ -544,8 +555,8 @@ void ahrs_display_init(void) {
 void ahrs_display_render(uint16_t roll_raw, uint16_t pitch_raw) {
     if(g_vga_words == NULL) ahrs_display_init();
 
-    float roll_deg  = q3_9_to_degrees(roll_raw);
-    float pitch_deg = q3_9_to_degrees(pitch_raw);
+    float roll_deg  = q3_9_to_degrees_roll(roll_raw);
+    float pitch_deg = q3_9_to_degrees_pitch(pitch_raw);
 
     static uint32_t frame[VGA_HEIGHT][WORDS_PER_ROW];
 
